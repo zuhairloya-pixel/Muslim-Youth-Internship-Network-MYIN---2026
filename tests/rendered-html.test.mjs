@@ -50,6 +50,9 @@ test("contains finished metadata and removes starter preview code", async () => 
   assert.match(page, /StudentView/);
   assert.match(page, /OrganizationView/);
   assert.match(page, /ImpactView/);
+  assert.match(page, /\/api\/extract/);
+  assert.match(page, /calculateMatch/);
+  assert.match(page, /Reset demo/);
   assert.match(layout, /Muslim Youth Internship Network/);
   assert.match(layout, /\/og\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
