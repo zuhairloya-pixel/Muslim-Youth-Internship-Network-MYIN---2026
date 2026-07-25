@@ -2219,6 +2219,40 @@ select {
   text-align: center;
 }
 
+.form-error,
+.form-success {
+  background: #fff4ee;
+  border: 1px solid #efc7b8;
+  border-radius: 9px;
+  color: #8a3d28;
+  font-size: 10px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+}
+
+.form-success {
+  background: #eaf5ee;
+  border-color: #c6e2d1;
+  color: #286143;
+  margin-bottom: 14px;
+}
+
+.reset-demo {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #cfdad4;
+  border-radius: 999px;
+  bottom: 18px;
+  color: #53655e;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 9px 13px;
+  position: fixed;
+  right: 18px;
+  z-index: 30;
+}
+
 .extraction-review {
   min-height: 550px;
 }
