@@ -33,16 +33,52 @@ type Opportunity = {
 
 type Extraction = {
   title: string;
-  type: string;
+  type: "Volunteer" | "Internship" | "Mentorship" | "";
   date: string;
   commitment: string;
   location: string;
-  format: string;
+  format: "In person" | "Remote" | "Hybrid" | "";
   ageRange: string;
   supervision: string;
   skills: string;
   impact: string;
 };
+
+type ExtractionField = keyof Extraction;
+
+type ExtractionResult = {
+  extraction: Extraction;
+  completeness: number;
+  needsConfirmation: ExtractionField[];
+};
+
+const extractionFields: ExtractionField[] = [
+  "title",
+  "type",
+  "date",
+  "commitment",
+  "location",
+  "format",
+  "ageRange",
+  "supervision",
+  "skills",
+  "impact",
+];
+
+function summarizeExtraction(extraction: Extraction) {
+  const needsConfirmation = extractionFields.filter(
+    (field) => !extraction[field].trim(),
+  );
+
+  return {
+    completeness: Math.round(
+      ((extractionFields.length - needsConfirmation.length) /
+        extractionFields.length) *
+        100,
+    ),
+    needsConfirmation,
+  };
+}
 
 const opportunities: Opportunity[] = [
   {
@@ -999,7 +1035,11 @@ function SubmissionView({
   description,
   setDescription,
   extraction,
-  setExtraction,
+  onUpdateExtraction,
+  completeness,
+  needsConfirmation,
+  isExtracting,
+  extractionError,
   onExtract,
   onPublish,
   published,
@@ -1007,15 +1047,22 @@ function SubmissionView({
   description: string;
   setDescription: (value: string) => void;
   extraction: Extraction | null;
-  setExtraction: (value: Extraction) => void;
+  onUpdateExtraction: (value: Extraction) => void;
+  completeness: number;
+  needsConfirmation: ExtractionField[];
+  isExtracting: boolean;
+  extractionError: string | null;
   onExtract: () => void;
   onPublish: () => void;
   published: boolean;
 }) {
   const updateField = (field: keyof Extraction, value: string) => {
     if (!extraction) return;
-    setExtraction({ ...extraction, [field]: value });
+    onUpdateExtraction({ ...extraction, [field]: value } as Extraction);
   };
+  const needsReview = (field: ExtractionField) =>
+    needsConfirmation.includes(field);
+  const completedFields = extractionFields.length - needsConfirmation.length;
 
   if (published) {
     return (
@@ -1024,7 +1071,7 @@ function SubmissionView({
         <span className="kicker">READY FOR REVIEW</span>
         <h1>Your opportunity has been structured.</h1>
         <p>
-          Community Food Drive Creative Team is saved and ready for an
+          {extraction?.title || "Your opportunity"} is saved and ready for an
           administrator to approve before students can see it.
         </p>
         <div className="success-summary">
@@ -1070,6 +1117,8 @@ function SubmissionView({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={11}
+              maxLength={5_000}
+              aria-describedby="description-limit"
             />
           </label>
           <div className="input-help">
@@ -1080,19 +1129,24 @@ function SubmissionView({
           <button
             className="button button-gold full-width"
             onClick={onExtract}
-            disabled={!description.trim()}
+            disabled={!description.trim() || isExtracting}
             data-testid="extract-button"
           >
-            <span aria-hidden="true">✦</span> Extract opportunity details
+            <span aria-hidden="true">✦</span>{" "}
+            {isExtracting
+              ? "Extracting details…"
+              : "Extract opportunity details"}
           </button>
-          <small className="demo-disclosure">
-            Local demo extraction works without an API key.
+          <small className="description-limit" id="description-limit">
+            {description.length.toLocaleString()} / 5,000 characters
           </small>
         </section>
 
         <section
           className={`panel extraction-review ${extraction ? "ready" : ""}`}
           data-testid="extraction-review"
+          aria-busy={isExtracting}
+          aria-live="polite"
         >
           <div className="number-heading">
             <span>2</span>
@@ -1101,7 +1155,37 @@ function SubmissionView({
               <p>You stay in control. Edit anything before submitting.</p>
             </div>
           </div>
-          {!extraction ? (
+          {isExtracting ? (
+            <div
+              className="waiting-state loading-state"
+              data-testid="extracting-state"
+            >
+              <div className="waiting-graphic" aria-hidden="true">
+                <span>✦</span>
+                <i />
+                <i />
+                <i />
+              </div>
+              <h3>Structuring your opportunity…</h3>
+              <p>
+                MYIN is identifying the details you provided and leaving
+                anything uncertain blank for your review.
+              </p>
+            </div>
+          ) : extractionError ? (
+            <div className="extraction-error-state" role="alert">
+              <span aria-hidden="true">!</span>
+              <h3>We couldn&apos;t extract those details.</h3>
+              <p>{extractionError}</p>
+              <button
+                className="button button-outline compact"
+                onClick={onExtract}
+                disabled={!description.trim()}
+              >
+                Try again
+              </button>
+            </div>
+          ) : !extraction ? (
             <div className="waiting-state">
               <div className="waiting-graphic">
                 <span>✦</span>
@@ -1117,15 +1201,30 @@ function SubmissionView({
             </div>
           ) : (
             <div className="extraction-form">
-              <div className="confidence-banner">
-                <span>✓</span>
+              <div
+                className={`confidence-banner ${
+                  needsConfirmation.length ? "needs-review" : ""
+                }`}
+              >
+                <span>{needsConfirmation.length ? "!" : "✓"}</span>
                 <p>
-                  <strong>High-confidence extraction</strong>
-                  <small>9 fields found · 1 field needs confirmation</small>
+                  <strong>Extraction completeness</strong>
+                  <small>
+                    {completedFields} fields found ·{" "}
+                    {needsConfirmation.length
+                      ? `${needsConfirmation.length} ${
+                          needsConfirmation.length === 1 ? "field" : "fields"
+                        } need confirmation`
+                      : "all fields are ready to review"}
+                  </small>
                 </p>
-                <b>92%</b>
+                <b>{completeness}%</b>
               </div>
-              <label className="wide-field">
+              <label
+                className={`wide-field ${
+                  needsReview("title") ? "attention-field" : ""
+                }`}
+              >
                 Opportunity title
                 <input
                   value={extraction.title}
@@ -1133,25 +1232,30 @@ function SubmissionView({
                 />
               </label>
               <div className="form-grid">
-                <label>
+                <label className={needsReview("type") ? "attention-field" : ""}>
                   Type
                   <select
                     value={extraction.type}
                     onChange={(event) => updateField("type", event.target.value)}
                   >
+                    <option value="">Needs confirmation</option>
                     <option>Volunteer</option>
                     <option>Internship</option>
                     <option>Mentorship</option>
                   </select>
                 </label>
-                <label>
+                <label className={needsReview("date") ? "attention-field" : ""}>
                   Date
                   <input
                     value={extraction.date}
                     onChange={(event) => updateField("date", event.target.value)}
                   />
                 </label>
-                <label>
+                <label
+                  className={
+                    needsReview("commitment") ? "attention-field" : ""
+                  }
+                >
                   Commitment
                   <input
                     value={extraction.commitment}
@@ -1160,18 +1264,23 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label>
+                <label
+                  className={needsReview("format") ? "attention-field" : ""}
+                >
                   Format
                   <select
                     value={extraction.format}
                     onChange={(event) => updateField("format", event.target.value)}
                   >
+                    <option value="">Needs confirmation</option>
                     <option>In person</option>
                     <option>Remote</option>
                     <option>Hybrid</option>
                   </select>
                 </label>
-                <label>
+                <label
+                  className={needsReview("ageRange") ? "attention-field" : ""}
+                >
                   Age range
                   <input
                     value={extraction.ageRange}
@@ -1180,7 +1289,9 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label>
+                <label
+                  className={needsReview("location") ? "attention-field" : ""}
+                >
                   Location
                   <input
                     value={extraction.location}
@@ -1190,14 +1301,22 @@ function SubmissionView({
                   />
                 </label>
               </div>
-              <label className="wide-field">
+              <label
+                className={`wide-field ${
+                  needsReview("skills") ? "attention-field" : ""
+                }`}
+              >
                 Skills requested
                 <input
                   value={extraction.skills}
                   onChange={(event) => updateField("skills", event.target.value)}
                 />
               </label>
-              <label className="wide-field attention-field">
+              <label
+                className={`wide-field ${
+                  needsReview("supervision") ? "attention-field" : ""
+                }`}
+              >
                 Adult supervision
                 <input
                   value={extraction.supervision}
@@ -1205,7 +1324,22 @@ function SubmissionView({
                     updateField("supervision", event.target.value)
                   }
                 />
-                <small>Confirm the supervising adult before publication.</small>
+                {needsReview("supervision") && (
+                  <small>
+                    Confirm the supervising adult before publication.
+                  </small>
+                )}
+              </label>
+              <label
+                className={`wide-field ${
+                  needsReview("impact") ? "attention-field" : ""
+                }`}
+              >
+                Community impact
+                <input
+                  value={extraction.impact}
+                  onChange={(event) => updateField("impact", event.target.value)}
+                />
               </label>
               <button
                 className="button button-dark full-width"
@@ -1304,22 +1438,61 @@ function OrganizationView() {
   const [tab, setTab] = useState<OrgTab>("overview");
   const [description, setDescription] = useState(defaultDescription);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
+  const [completeness, setCompleteness] = useState(0);
+  const [needsConfirmation, setNeedsConfirmation] = useState<ExtractionField[]>(
+    [],
+  );
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
   const [shortlisted, setShortlisted] = useState<number[]>([]);
 
-  const extract = () => {
-    setExtraction({
-      title: "Community Food Drive Creative Team",
-      type: "Volunteer",
-      date: "Next Saturday, 10 AM–2 PM",
-      commitment: "4 hours",
-      location: "Rahma Community Center",
-      format: "In person",
-      ageRange: "14–18",
-      supervision: "Adult volunteer coordinator",
-      skills: "Photography, Canva, social media, event support",
-      impact: "Supports local families experiencing food insecurity",
-    });
+  const updateExtraction = (value: Extraction) => {
+    const summary = summarizeExtraction(value);
+    setExtraction(value);
+    setCompleteness(summary.completeness);
+    setNeedsConfirmation(summary.needsConfirmation);
+  };
+
+  const extract = async () => {
+    if (isExtracting || !description.trim()) return;
+
+    setIsExtracting(true);
+    setExtractionError(null);
+    setExtraction(null);
+    setCompleteness(0);
+    setNeedsConfirmation([]);
+
+    try {
+      const response = await fetch("/api/extract-opportunity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description }),
+      });
+      const payload = (await response.json()) as
+        | ExtractionResult
+        | { error?: { message?: string } };
+
+      if (!response.ok || !("extraction" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error?.message
+            ? payload.error.message
+            : "MYIN could not extract this opportunity. Please try again.",
+        );
+      }
+
+      setExtraction(payload.extraction);
+      setCompleteness(payload.completeness);
+      setNeedsConfirmation(payload.needsConfirmation);
+    } catch (error) {
+      setExtractionError(
+        error instanceof Error
+          ? error.message
+          : "MYIN could not extract this opportunity. Please try again.",
+      );
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const toggleShortlist = (id: number) => {
@@ -1377,7 +1550,11 @@ function OrganizationView() {
             description={description}
             setDescription={setDescription}
             extraction={extraction}
-            setExtraction={setExtraction}
+            onUpdateExtraction={updateExtraction}
+            completeness={completeness}
+            needsConfirmation={needsConfirmation}
+            isExtracting={isExtracting}
+            extractionError={extractionError}
             onExtract={extract}
             onPublish={() => setPublished(true)}
             published={published}

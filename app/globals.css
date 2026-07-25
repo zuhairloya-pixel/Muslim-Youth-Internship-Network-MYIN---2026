@@ -2211,7 +2211,7 @@ select {
   color: var(--gold-500);
 }
 
-.demo-disclosure {
+.description-limit {
   color: #8d9a95;
   display: block;
   font-size: 8px;
@@ -2291,6 +2291,55 @@ select {
   max-width: 300px;
 }
 
+.loading-state .waiting-graphic {
+  animation: extraction-pulse 1.4s ease-in-out infinite;
+}
+
+.loading-state .waiting-graphic i {
+  animation: extraction-orbit 1.4s ease-in-out infinite alternate;
+}
+
+.extraction-error-state {
+  align-items: center;
+  background: #fff7f5;
+  border: 1px solid #efc8c0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 34px;
+  padding: 42px 24px;
+  text-align: center;
+}
+
+.extraction-error-state > span {
+  align-items: center;
+  background: #a63f32;
+  border-radius: 50%;
+  color: var(--white);
+  display: flex;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  height: 42px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 42px;
+}
+
+.extraction-error-state h3 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.extraction-error-state p {
+  color: #7c514b;
+  font-size: 10px;
+  line-height: 1.55;
+  margin: 0 0 18px;
+  max-width: 330px;
+}
+
 .extraction-form {
   display: flex;
   flex-direction: column;
@@ -2342,6 +2391,19 @@ select {
   font-size: 18px;
 }
 
+.confidence-banner.needs-review {
+  background: #fff9ea;
+  border-color: #e8d89f;
+}
+
+.confidence-banner.needs-review > span {
+  background: #9a761e;
+}
+
+.confidence-banner.needs-review b {
+  color: #806114;
+}
+
 .form-grid {
   display: grid;
   gap: 12px;
@@ -2363,6 +2425,29 @@ select {
   color: #8a6d24;
   font-size: 8px;
   font-weight: 500;
+}
+
+@keyframes extraction-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 98, 78, 0);
+    transform: scale(0.98);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(20, 98, 78, 0.07);
+    transform: scale(1);
+  }
+}
+
+@keyframes extraction-orbit {
+  from {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }
 
 .publish-success {
@@ -3629,6 +3714,8 @@ select {
   *,
   *::before,
   *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
