@@ -41,7 +41,9 @@ function errorResponse(code: ErrorCode, message: string, status: number) {
 
 function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return true;
+  if (!origin) {
+    return true;
+  }
 
   try {
     return new URL(origin).origin === new URL(request.url).origin;

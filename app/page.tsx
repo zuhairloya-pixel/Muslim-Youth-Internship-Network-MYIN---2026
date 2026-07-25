@@ -715,7 +715,9 @@ function StudentView({
 
   const filtered = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      if (dismissedIds.includes(opportunity.id)) return false;
+      if (dismissedIds.includes(opportunity.id)) {
+        return false;
+      }
       const filterMatches =
         filter === "All" ||
         (filter === "Internships" && opportunity.type === "Internship") ||
@@ -1057,7 +1059,9 @@ function SubmissionView({
   published: boolean;
 }) {
   const updateField = (field: keyof Extraction, value: string) => {
-    if (!extraction) return;
+    if (!extraction) {
+      return;
+    }
     onUpdateExtraction({ ...extraction, [field]: value } as Extraction);
   };
   const needsReview = (field: ExtractionField) =>
@@ -1455,7 +1459,9 @@ function OrganizationView() {
   };
 
   const extract = async () => {
-    if (isExtracting || !description.trim()) return;
+    if (isExtracting || !description.trim()) {
+      return;
+    }
 
     setIsExtracting(true);
     setExtractionError(null);
@@ -1993,15 +1999,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(
-      "myin-demo-state",
-      JSON.stringify({ savedIds, appliedIds, dismissedIds }),
-    );
+    if (!hydrated) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        "myin-demo-state",
+        JSON.stringify({ savedIds, appliedIds, dismissedIds }),
+      );
+    } catch {
+      // The demo still works if local storage is unavailable or full.
+    }
   }, [appliedIds, dismissedIds, hydrated, savedIds]);
 
   useEffect(() => {
-    if (!notice) return;
+    if (!notice) {
+      return;
+    }
     const timeout = window.setTimeout(() => setNotice(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [notice]);
@@ -2012,21 +2027,27 @@ export default function Home() {
   };
 
   const toggleSave = (id: number) => {
-    setSavedIds((current) => {
-      const isSaved = current.includes(id);
-      setNotice(isSaved ? "Removed from saved opportunities." : "Opportunity saved.");
-      return isSaved ? current.filter((item) => item !== id) : [...current, id];
-    });
+    const isSaved = savedIds.includes(id);
+    setSavedIds(
+      isSaved ? savedIds.filter((item) => item !== id) : [...savedIds, id],
+    );
+    setNotice(isSaved ? "Removed from saved opportunities." : "Opportunity saved.");
   };
 
   const apply = (id: number) => {
-    if (appliedIds.includes(id)) return;
-    setAppliedIds((current) => [...current, id]);
+    if (appliedIds.includes(id)) {
+      return;
+    }
+    setAppliedIds((current) =>
+      current.includes(id) ? current : [...current, id],
+    );
     setNotice("Interest sent safely. Your contact details are still private.");
   };
 
   const dismiss = (id: number) => {
-    setDismissedIds((current) => [...current, id]);
+    setDismissedIds((current) =>
+      current.includes(id) ? current : [...current, id],
+    );
     setNotice("Got it. We’ll use that feedback to improve your matches.");
   };
 
