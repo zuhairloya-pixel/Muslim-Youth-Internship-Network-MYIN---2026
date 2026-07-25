@@ -44,6 +44,53 @@ type Extraction = {
   impact: string;
 };
 
+type OrganizationResearch = {
+  name: string;
+  summary: string;
+  mission: string;
+  sectors: string[];
+  audiences: string[];
+  cultureSignals: string[];
+  location: string;
+  sourceNote: string;
+  website?: string;
+};
+
+type StudentProfile = {
+  grade: string;
+  location: string;
+  preferredFormat: string;
+  availability: string;
+  careerGoal: string;
+  narrative: string;
+  interests: string[];
+  skills: string[];
+  causes: string[];
+  opportunityTypes: string[];
+  languages: string[];
+  transportation: string;
+  workStyle: string;
+  experienceLevel: string;
+};
+
+const initialStudentProfile: StudentProfile = {
+  grade: "Grade 11",
+  location: "Dearborn, MI",
+  preferredFormat: "Local or virtual",
+  availability: "Saturdays, 10 AM-4 PM",
+  careerGoal: "Explore design and technology for social impact",
+  narrative:
+    "I help our MSA make event flyers and social posts. I enjoy building things, working with younger students, and want to explore technology that helps communities.",
+  interests: ["Technology", "Design", "Youth education"],
+  skills: ["Canva", "Social media", "Basic web design"],
+  causes: ["Education access", "Community service"],
+  opportunityTypes: ["Internships", "Volunteer projects"],
+  languages: ["English", "Arabic"],
+  transportation: "Local rides available",
+  workStyle: "Creative team",
+  experienceLevel: "Growing portfolio",
+};
+
 const opportunities: Opportunity[] = [
   {
     id: 1,
@@ -199,6 +246,109 @@ const candidates = [
   },
 ];
 
+function normalizeSignal(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function signalMatches(signal: string, corpus: string) {
+  const normalized = normalizeSignal(signal);
+  if (corpus.includes(normalized)) return true;
+  const meaningfulWords = normalized.split(" ").filter((word) => word.length >= 4);
+  return meaningfulWords.some((word) => corpus.includes(word));
+}
+
+function calculateOpportunityMatch(
+  profile: StudentProfile,
+  opportunity: Opportunity,
+): Opportunity {
+  const corpus = normalizeSignal(
+    [
+      opportunity.title,
+      opportunity.description,
+      opportunity.skills.join(" "),
+      opportunity.type,
+      opportunity.format,
+      opportunity.location,
+      opportunity.commitment,
+    ].join(" "),
+  );
+
+  const interestHits = [...profile.interests, ...profile.causes].filter((signal) =>
+    signalMatches(signal, corpus),
+  ).length;
+  const interests = interestHits >= 2 ? 25 : interestHits === 1 ? 15 : 5;
+
+  const skillHits = opportunity.skills.filter((requested) =>
+    profile.skills.some(
+      (skill) => signalMatches(skill, normalizeSignal(requested)) || signalMatches(requested, normalizeSignal(skill)),
+    ),
+  ).length;
+  const skills = opportunity.skills.length
+    ? Math.round((skillHits / opportunity.skills.length) * 20)
+    : 20;
+
+  const careerWords = normalizeSignal(profile.careerGoal)
+    .split(" ")
+    .filter((word) => word.length >= 5 && !["explore", "social", "impact"].includes(word));
+  const careerHits = careerWords.filter((word) => corpus.includes(word)).length;
+  const career = careerHits >= 2 ? 15 : careerHits === 1 ? 8 : 3;
+
+  const availabilityText = normalizeSignal(profile.availability);
+  const scheduleText = normalizeSignal(opportunity.commitment);
+  const availability =
+    (availabilityText.includes("saturday") && scheduleText.includes("saturday")) ||
+    scheduleText.includes("hrs week")
+      ? 15
+      : 10;
+
+  const formatPreference = normalizeSignal(profile.preferredFormat);
+  const format = normalizeSignal(opportunity.format);
+  const location = normalizeSignal(opportunity.location);
+  const profileLocation = normalizeSignal(profile.location);
+  const locationAndFormat =
+    (format.includes("remote") && formatPreference.includes("virtual")) ||
+    format.includes("hybrid") ||
+    location.includes("anywhere") ||
+    location.split(" ").some((part) => part.length > 4 && profileLocation.includes(part))
+      ? 10
+      : formatPreference.includes("local")
+        ? 7
+        : 3;
+
+  const preferredTypes = profile.opportunityTypes.map(normalizeSignal);
+  const opportunityType = normalizeSignal(opportunity.type);
+  const typePreference = preferredTypes.some((type) => type.includes(opportunityType))
+    ? 5
+    : preferredTypes.length
+      ? 3
+      : 0;
+
+  const breakdown: ScoreItem[] = [
+    { label: "Interests", earned: interests, possible: 25 },
+    { label: "Skills", earned: skills, possible: 20 },
+    { label: "Career goals", earned: career, possible: 15 },
+    { label: "Availability", earned: availability, possible: 15 },
+    { label: "Eligibility", earned: 10, possible: 10 },
+    { label: "Location & format", earned: locationAndFormat, possible: 10 },
+    { label: "Opportunity type", earned: typePreference, possible: 5 },
+  ];
+
+  const reasons = [
+    ...(skillHits > 0 ? [`${skillHits} requested skill${skillHits === 1 ? "" : "s"} already in your profile`] : []),
+    ...(interestHits > 0 ? ["Connects with your interests and causes"] : []),
+    ...(availability === 15 ? ["Fits your stated availability"] : []),
+    ...(locationAndFormat === 10 ? ["Matches your location or format preference"] : []),
+    ...(career >= 8 ? ["Builds toward your stated career direction"] : []),
+  ];
+
+  return {
+    ...opportunity,
+    score: breakdown.reduce((total, item) => total + item.earned, 0),
+    breakdown,
+    matchReasons: reasons.length ? reasons : ["Eligible based on your core profile", "A chance to build new skills"],
+  };
+}
+
 function Brand({ onClick }: { onClick: () => void }) {
   return (
     <button className="brand" onClick={onClick} aria-label="Go to MYIN home">
@@ -286,6 +436,11 @@ function HomeView({
                 MYIN finds opportunities built for who you are—and shows exactly
                 why each one belongs on your radar.
               </p>
+              <div className="hero-intelligence-line" aria-label="MYIN product strengths">
+                <span><b>01</b> Identity-aware profile</span>
+                <span><b>02</b> Explainable matching</span>
+                <span><b>03</b> Trusted introductions</span>
+              </div>
               <div className="hero-actions">
                 <button
                   className="button button-gold"
@@ -315,6 +470,10 @@ function HomeView({
             </div>
 
             <div className="hero-product" aria-label="Example MYIN match">
+              <div className="hero-system-status">
+                <span><i /> MYIN opportunity radar</span>
+                <strong>LIVE DEMO</strong>
+              </div>
               <div className="product-orbit orbit-one" />
               <div className="product-orbit orbit-two" />
               <div className="floating-note note-top">
@@ -388,6 +547,36 @@ function HomeView({
               <span>of matches explained</span>
             </div>
             <p>Demo cohort · Southeast Michigan</p>
+          </div>
+        </section>
+
+        <section className="intelligence-section">
+          <div className="page-width intelligence-grid">
+            <div className="intelligence-copy">
+              <span className="kicker">BUILT AROUND THE WHOLE PERSON</span>
+              <h2>A profile that sees potential before a resume does.</h2>
+              <p>
+                Skills are only one signal. MYIN understands goals, causes,
+                availability, learning edges, preferred environments, and the
+                contribution a student wants to make.
+              </p>
+              <button className="button button-dark" onClick={() => onNavigate("student")}>
+                Open student mission control
+              </button>
+            </div>
+            <div className="signal-cloud" aria-label="Example student profile signals">
+              <div className="signal-core">
+                <span>88%</span>
+                <strong>Profile signal</strong>
+                <small>12 dimensions understood</small>
+              </div>
+              <span className="signal-chip signal-one">Creative builder</span>
+              <span className="signal-chip signal-two">Saturday availability</span>
+              <span className="signal-chip signal-three">Youth education</span>
+              <span className="signal-chip signal-four">Learning web design</span>
+              <span className="signal-chip signal-five">Community impact</span>
+              <div className="signal-grid-lines" />
+            </div>
           </div>
         </section>
 
@@ -654,6 +843,8 @@ function OpportunityCard({
 }
 
 function StudentView({
+  profile,
+  createdOpportunities,
   savedIds,
   appliedIds,
   dismissedIds,
@@ -664,6 +855,8 @@ function StudentView({
   onEmail,
   onProfile,
 }: {
+  profile: StudentProfile;
+  createdOpportunities: Opportunity[];
   savedIds: number[];
   appliedIds: number[];
   dismissedIds: number[];
@@ -676,9 +869,17 @@ function StudentView({
 }) {
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
+  const profileStrength = Math.min(
+    100,
+    56 + profile.skills.length * 4 + profile.interests.length * 3 + profile.causes.length * 3,
+  );
+  const matchedOpportunities = useMemo(
+    () => [...opportunities, ...createdOpportunities].map((opportunity) => calculateOpportunityMatch(profile, opportunity)),
+    [createdOpportunities, profile],
+  );
 
   const filtered = useMemo(() => {
-    return opportunities.filter((opportunity) => {
+    return matchedOpportunities.filter((opportunity) => {
       if (dismissedIds.includes(opportunity.id)) return false;
       const filterMatches =
         filter === "All" ||
@@ -692,7 +893,7 @@ function StudentView({
         );
       return filterMatches && searchMatches;
     });
-  }, [dismissedIds, filter, search]);
+  }, [dismissedIds, filter, matchedOpportunities, search]);
 
   return (
     <main className="dashboard-page">
@@ -701,14 +902,14 @@ function StudentView({
           <div className="profile-avatar">AH</div>
           <span className="verified-profile">✓</span>
           <h2>Amina Hassan</h2>
-          <p>Grade 11 · Dearborn, MI</p>
+          <p>{profile.grade} / {profile.location}</p>
           <div className="profile-completion">
             <div>
               <span>Profile strength</span>
-              <strong>88%</strong>
+              <strong>{profileStrength}%</strong>
             </div>
             <div className="progress-track">
-              <span style={{ width: "88%" }} />
+              <span style={{ width: `${profileStrength}%` }} />
             </div>
           </div>
           <button className="button button-outline full-width" onClick={onProfile}>
@@ -719,26 +920,18 @@ function StudentView({
         <div className="sidebar-section">
           <span className="sidebar-label">MY FOCUS</span>
           <div className="profile-chips">
-            <span>Technology</span>
-            <span>Design</span>
-            <span>Youth education</span>
+            {profile.interests.map((interest) => <span key={interest}>{interest}</span>)}
           </div>
         </div>
         <div className="sidebar-section">
           <span className="sidebar-label">MY SKILLS</span>
           <ul className="simple-list">
-            <li>
-              <span>Canva</span>
-              <small>Experienced</small>
-            </li>
-            <li>
-              <span>Social media</span>
-              <small>Experienced</small>
-            </li>
-            <li>
-              <span>Web design</span>
-              <small>Learning</small>
-            </li>
+            {profile.skills.map((skill, index) => (
+              <li key={skill}>
+                <span>{skill}</span>
+                <small>{index < 2 ? "Confident" : "Developing"}</small>
+              </li>
+            ))}
           </ul>
         </div>
         <div className="privacy-note">
@@ -751,6 +944,35 @@ function StudentView({
       </aside>
 
       <section className="student-main">
+        <section className="student-command-hero">
+          <div className="command-hero-copy">
+            <div className="command-status"><i /> OPPORTUNITY RADAR ACTIVE</div>
+            <h1>Your next level is already in range.</h1>
+            <p>
+              MYIN understands {profile.skills.length + profile.interests.length + profile.causes.length} signals
+              about you and found <strong>4 high-potential moves</strong> worth making now.
+            </p>
+            <div className="command-actions">
+              <button className="button button-gold" onClick={onProfile}>Strengthen my signal</button>
+              <button className="button button-ghost-light" onClick={() => document.getElementById("match-feed")?.scrollIntoView({ behavior: "smooth" })}>
+                Launch opportunity feed
+              </button>
+            </div>
+          </div>
+          <div className="radar-visual" aria-label={`${profileStrength} percent profile strength`}>
+            <div className="radar-ring radar-ring-one" />
+            <div className="radar-ring radar-ring-two" />
+            <div className="radar-sweep" />
+            <div className="radar-core">
+              <strong>{profileStrength}%</strong>
+              <span>signal strength</span>
+            </div>
+            <i className="radar-point point-one" />
+            <i className="radar-point point-two" />
+            <i className="radar-point point-three" />
+          </div>
+        </section>
+
         <div className="student-welcome">
           <div>
             <span className="kicker">SATURDAY, JULY 25</span>
@@ -771,7 +993,7 @@ function StudentView({
           <article>
             <span className="stat-symbol">✦</span>
             <div>
-              <strong>{opportunities.length}</strong>
+              <strong>{matchedOpportunities.length}</strong>
               <small>New matches</small>
             </div>
             <em>+2 today</em>
@@ -799,7 +1021,35 @@ function StudentView({
           </article>
         </div>
 
-        <div className="feed-toolbar">
+        <section className="student-intelligence-grid">
+          <article className="identity-card">
+            <div className="intel-card-head">
+              <span>IDENTITY SIGNAL</span>
+              <button onClick={onProfile}>Tune profile</button>
+            </div>
+            <h3>{profile.workStyle}</h3>
+            <p>{profile.careerGoal}</p>
+            <div className="signal-meter-list">
+              <div><span>Skills mapped</span><strong>{profile.skills.length}/8</strong><i><b style={{ width: `${Math.min(100, profile.skills.length * 12.5)}%` }} /></i></div>
+              <div><span>Interests mapped</span><strong>{profile.interests.length}/6</strong><i><b style={{ width: `${Math.min(100, profile.interests.length * 16.6)}%` }} /></i></div>
+              <div><span>Availability clarity</span><strong>Strong</strong><i><b style={{ width: "92%" }} /></i></div>
+            </div>
+          </article>
+          <article className="next-move-card">
+            <div className="intel-card-head"><span>YOUR NEXT MOVE</span><em>+6 match points</em></div>
+            <h3>Add one project you are proud of.</h3>
+            <p>Even an MSA flyer or school project helps organizations see what you can do.</p>
+            <button className="text-link" onClick={onProfile}>Add experience now →</button>
+          </article>
+          <article className="momentum-card">
+            <div className="intel-card-head"><span>MOMENTUM</span><em>THIS MONTH</em></div>
+            <div className="momentum-number"><strong>+18</strong><span>profile<br />signal gain</span></div>
+            <div className="mini-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
+            <small>Top 12% of active student profiles</small>
+          </article>
+        </section>
+
+        <div className="feed-toolbar" id="match-feed">
           <div className="filter-tabs" role="group" aria-label="Filter opportunities">
             {(["All", "Internships", "Volunteer", "Mentorship"] as Filter[]).map(
               (item) => (
@@ -881,6 +1131,19 @@ function OrganizationOverview({ onTab }: { onTab: (tab: OrgTab) => void }) {
           + Post an opportunity
         </button>
       </div>
+
+      <section className="org-command-strip">
+        <div className="org-command-copy">
+          <span><i /> TALENT NETWORK ONLINE</span>
+          <h2>Your community needs are becoming student pathways.</h2>
+          <p>MYIN is actively comparing your roles with 126 permissioned youth profiles across 14 fit signals.</p>
+        </div>
+        <div className="org-command-metrics">
+          <div><small>NETWORK FIT</small><strong>91%</strong><span>High signal</span></div>
+          <div><small>AVG. RESPONSE</small><strong>1.8d</strong><span>22% faster</span></div>
+          <div><small>PROFILE REACH</small><strong>126</strong><span>Privacy-safe</span></div>
+        </div>
+      </section>
 
       <div className="org-stat-grid">
         <article>
@@ -996,19 +1259,35 @@ function OrganizationOverview({ onTab }: { onTab: (tab: OrgTab) => void }) {
 }
 
 function SubmissionView({
+  website,
+  setWebsite,
+  organizationResearch,
+  onResearch,
+  researching,
+  researchNote,
   description,
   setDescription,
   extraction,
   setExtraction,
   onExtract,
+  extracting,
+  extractNote,
   onPublish,
   published,
 }: {
+  website: string;
+  setWebsite: (value: string) => void;
+  organizationResearch: OrganizationResearch | null;
+  onResearch: () => void;
+  researching: boolean;
+  researchNote: string;
   description: string;
   setDescription: (value: string) => void;
   extraction: Extraction | null;
   setExtraction: (value: Extraction) => void;
   onExtract: () => void;
+  extracting: boolean;
+  extractNote: string;
   onPublish: () => void;
   published: boolean;
 }) {
@@ -1049,16 +1328,42 @@ function SubmissionView({
     <div className="submission-layout">
       <div className="submission-intro">
         <span className="kicker">AI-ASSISTED SUBMISSION</span>
-        <h1>Describe the help you need.</h1>
+        <h1>From website to perfect youth role.</h1>
         <p>
-          Paste a rough description. MYIN will organize it into a clear,
-          student-friendly opportunity for you to review.
+          Let MYIN understand your organization, then turn a rough need into a
+          clear, student-friendly opportunity.
         </p>
       </div>
+      <section className="organization-research-card">
+        <div className="research-step-mark">01</div>
+        <div className="research-copy">
+          <span>ORGANIZATION INTELLIGENCE</span>
+          <h2>Start with your website. We&apos;ll do the homework.</h2>
+          <p>MYIN reads public information to prepare an editable profile. Nothing is verified or published until you confirm it.</p>
+          <div className="website-research-input">
+            <input value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://yourorganization.org" aria-label="Organization website" />
+            <button onClick={onResearch} disabled={researching || !website.trim()}>{researching ? "Understanding organization..." : "Build organization profile"}</button>
+          </div>
+          {researchNote && <small className="research-note">{researchNote}</small>}
+        </div>
+        <div className={`research-result ${organizationResearch ? "ready" : ""}`}>
+          {organizationResearch ? (
+            <>
+              <div className="research-result-head"><span>AI DRAFT</span><strong>Ready to confirm</strong></div>
+              <h3>{organizationResearch.name}</h3>
+              <p>{organizationResearch.summary}</p>
+              <div className="research-tags">{[...organizationResearch.sectors, ...organizationResearch.cultureSignals].slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
+              <small>{organizationResearch.location || "Location needs confirmation"}</small>
+            </>
+          ) : (
+            <div className="research-waiting"><i>✦</i><strong>Organization profile</strong><small>Mission, programs, audience, culture, and location will appear here.</small></div>
+          )}
+        </div>
+      </section>
       <div className="submission-grid">
         <section className="panel submission-source">
           <div className="number-heading">
-            <span>1</span>
+            <span>2</span>
             <div>
               <h2>Paste your opportunity</h2>
               <p>Plain language is perfect—no formal job description needed.</p>
@@ -1080,13 +1385,13 @@ function SubmissionView({
           <button
             className="button button-gold full-width"
             onClick={onExtract}
-            disabled={!description.trim()}
+            disabled={!description.trim() || extracting}
             data-testid="extract-button"
           >
-            <span aria-hidden="true">✦</span> Extract opportunity details
+            <span aria-hidden="true">✦</span> {extracting ? "Structuring opportunity..." : "Extract opportunity details"}
           </button>
           <small className="demo-disclosure">
-            Local demo extraction works without an API key.
+            {extractNote || "Gemini drafts the listing. You confirm every field before publication."}
           </small>
         </section>
 
@@ -1095,7 +1400,7 @@ function SubmissionView({
           data-testid="extraction-review"
         >
           <div className="number-heading">
-            <span>2</span>
+            <span>3</span>
             <div>
               <h2>Review what MYIN found</h2>
               <p>You stay in control. Edit anything before submitting.</p>
@@ -1251,6 +1556,12 @@ function MatchesView({
           details, and precise locations are hidden.
         </p>
       </div>
+      <section className="candidate-pipeline" aria-label="Candidate pipeline">
+        <article><span>Recommended</span><strong>12</strong><small>Best-fit profiles</small></article>
+        <article><span>Interested</span><strong>4</strong><small>Student-led signals</small></article>
+        <article><span>Shortlisted</span><strong>{shortlisted.length}</strong><small>Ready to review</small></article>
+        <article><span>Introductions</span><strong>1</strong><small>Consent in progress</small></article>
+      </section>
       <div className="candidate-list">
         {candidates.map((candidate, index) => {
           const isShortlisted = shortlisted.includes(candidate.id);
@@ -1300,26 +1611,89 @@ function MatchesView({
   );
 }
 
-function OrganizationView() {
+function OrganizationView({
+  onPublishOpportunity,
+}: {
+  onPublishOpportunity: (opportunity: Opportunity) => void;
+}) {
   const [tab, setTab] = useState<OrgTab>("overview");
+  const [website, setWebsite] = useState("https://rahmacommunity.example");
+  const [organizationResearch, setOrganizationResearch] = useState<OrganizationResearch | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchNote, setResearchNote] = useState("");
   const [description, setDescription] = useState(defaultDescription);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractNote, setExtractNote] = useState("");
   const [published, setPublished] = useState(false);
   const [shortlisted, setShortlisted] = useState<number[]>([]);
 
-  const extract = () => {
+  const researchOrganization = async () => {
+    setResearching(true);
+    setResearchNote("");
+    try {
+      const response = await fetch("/api/organization-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ website }),
+      });
+      if (!response.ok) throw new Error("Research unavailable");
+      setOrganizationResearch((await response.json()) as OrganizationResearch);
+      setResearchNote("Public website analyzed. Review this AI draft before using it.");
+    } catch {
+      setOrganizationResearch({
+        name: "Rahma Community Center",
+        summary: "A fictional community hub supporting families, youth learning, and neighborhood service projects.",
+        mission: "Help local families thrive through service, learning, and connection.",
+        sectors: ["Community services", "Youth programs"],
+        audiences: ["Youth", "Families"],
+        cultureSignals: ["Service-led", "Mentorship"],
+        location: "Dearborn, MI",
+        sourceNote: "Demo profile shown until Gemini is configured.",
+        website,
+      });
+      setResearchNote("Demo profile shown. Add GEMINI_API_KEY to activate live website understanding.");
+    } finally {
+      setResearching(false);
+    }
+  };
+
+  const extract = async () => {
+    setExtracting(true);
+    setExtractNote("");
+    try {
+      const response = await fetch("/api/opportunity-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description,
+          organizationContext: organizationResearch
+            ? `${organizationResearch.name}: ${organizationResearch.summary}. Mission: ${organizationResearch.mission}`
+            : "",
+        }),
+      });
+      if (!response.ok) throw new Error("Extraction unavailable");
+      const result = (await response.json()) as Extraction & { missingFields?: string[] };
+      setExtraction(result);
+      setExtractNote(`Gemini extraction complete${result.missingFields?.length ? ` — ${result.missingFields.length} field(s) need confirmation` : ""}.`);
+      setExtracting(false);
+      return;
+    } catch {
+      setExtractNote("Gemini is not configured yet. Manual fields are open; no details were invented.");
+    }
     setExtraction({
-      title: "Community Food Drive Creative Team",
+      title: "",
       type: "Volunteer",
-      date: "Next Saturday, 10 AM–2 PM",
-      commitment: "4 hours",
-      location: "Rahma Community Center",
+      date: "",
+      commitment: "",
+      location: "",
       format: "In person",
-      ageRange: "14–18",
-      supervision: "Adult volunteer coordinator",
-      skills: "Photography, Canva, social media, event support",
-      impact: "Supports local families experiencing food insecurity",
+      ageRange: "",
+      supervision: "",
+      skills: "",
+      impact: "",
     });
+    setExtracting(false);
   };
 
   const toggleShortlist = (id: number) => {
@@ -1328,6 +1702,30 @@ function OrganizationView() {
         ? current.filter((candidateId) => candidateId !== id)
         : [...current, id],
     );
+  };
+
+  const publishOpportunity = () => {
+    if (!extraction?.title.trim()) return;
+    const skills = extraction.skills.split(",").map((item) => item.trim()).filter(Boolean);
+    onPublishOpportunity({
+      id: 1001,
+      title: extraction.title,
+      organization: organizationResearch?.name || "Rahma Community Center",
+      organizationMark: (organizationResearch?.name || "Rahma Community Center").split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase(),
+      type: extraction.type as Opportunity["type"],
+      format: extraction.format,
+      location: extraction.location || "Location to confirm",
+      deadline: extraction.date || "Date to confirm",
+      commitment: extraction.commitment || "Commitment to confirm",
+      description: extraction.impact || description,
+      skills,
+      matchReasons: [],
+      score: 0,
+      breakdown: [],
+      accent: "gold",
+      new: true,
+    });
+    setPublished(true);
   };
 
   return (
@@ -1374,12 +1772,20 @@ function OrganizationView() {
         {tab === "overview" && <OrganizationOverview onTab={setTab} />}
         {tab === "submit" && (
           <SubmissionView
+            website={website}
+            setWebsite={setWebsite}
+            organizationResearch={organizationResearch}
+            onResearch={researchOrganization}
+            researching={researching}
+            researchNote={researchNote}
             description={description}
             setDescription={setDescription}
             extraction={extraction}
             setExtraction={setExtraction}
             onExtract={extract}
-            onPublish={() => setPublished(true)}
+            extracting={extracting}
+            extractNote={extractNote}
+            onPublish={publishOpportunity}
             published={published}
           />
         )}
@@ -1697,8 +2103,68 @@ function EmailModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ProfileModal({ onClose }: { onClose: () => void }) {
+function ProfileModal({
+  profile,
+  onSave,
+  onClose,
+}: {
+  profile: StudentProfile;
+  onSave: (profile: StudentProfile) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(profile);
   const [saved, setSaved] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [analysisNote, setAnalysisNote] = useState("");
+  const [suggestedWorkStyle, setSuggestedWorkStyle] = useState("");
+
+  const update = <K extends keyof StudentProfile>(key: K, value: StudentProfile[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const analyzeStory = async () => {
+    if (!draft.narrative.trim()) return;
+    setAnalyzing(true);
+    setAnalysisNote("");
+    try {
+      const response = await fetch("/api/profile-enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ narrative: draft.narrative }),
+      });
+      if (!response.ok) throw new Error("AI unavailable");
+      const result = (await response.json()) as {
+        skills: string[];
+        interests: string[];
+        causes: string[];
+        workStyle: string;
+        summary: string;
+      };
+      setSuggestions([...result.skills.slice(0, 3), ...result.interests.slice(0, 2), ...result.causes.slice(0, 1)]);
+      setSuggestedWorkStyle(result.workStyle);
+      setAnalysisNote(result.summary);
+    } catch {
+      const text = draft.narrative.toLowerCase();
+      const next = [
+        text.includes("msa") || text.includes("community") ? "Community leadership" : "Self-directed learner",
+        text.includes("flyer") || text.includes("design") ? "Visual communication" : "Clear communication",
+        text.includes("student") || text.includes("tutor") ? "Youth mentorship" : "Collaborative work",
+      ];
+      setSuggestions(next);
+      setAnalysisNote("Preview suggestions shown. Add the Gemini key to activate live enrichment.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const acceptSuggestions = () => {
+    update("skills", Array.from(new Set([...draft.skills, ...suggestions.slice(0, 3)])));
+    update("interests", Array.from(new Set([...draft.interests, ...suggestions.slice(3)])));
+    if (suggestedWorkStyle) update("workStyle", suggestedWorkStyle);
+    setSuggestions([]);
+    setSuggestedWorkStyle("");
+  };
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -1712,14 +2178,17 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
         <button className="modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <span className="kicker">STUDENT PROFILE</span>
-        <h2 id="profile-modal-title">Help MYIN understand you.</h2>
-        <p>These details shape your eligibility checks and recommendation score.</p>
+        <span className="kicker">MYIN IDENTITY STUDIO</span>
+        <h2 id="profile-modal-title">Turn who you are into better opportunities.</h2>
+        <p>Required basics unlock eligibility. Optional signals make every match sharper.</p>
         <div className="profile-form">
+          <div className="profile-form-section-title">
+            <span>01</span><div><strong>Eligibility essentials</strong><small>Required for accurate matches</small></div>
+          </div>
           <div className="form-grid">
             <label>
               Grade
-              <select defaultValue="Grade 11">
+              <select value={draft.grade} onChange={(event) => update("grade", event.target.value)}>
                 <option>Grade 9</option>
                 <option>Grade 10</option>
                 <option>Grade 11</option>
@@ -1729,11 +2198,11 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             </label>
             <label>
               General location
-              <input defaultValue="Dearborn, MI" />
+              <input value={draft.location} onChange={(event) => update("location", event.target.value)} />
             </label>
             <label>
               Preferred format
-              <select defaultValue="Local or virtual">
+              <select value={draft.preferredFormat} onChange={(event) => update("preferredFormat", event.target.value)}>
                 <option>Local or virtual</option>
                 <option>Virtual only</option>
                 <option>Local only</option>
@@ -1741,21 +2210,54 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             </label>
             <label>
               Availability
-              <input defaultValue="Saturdays, 10 AM–4 PM" />
+              <input value={draft.availability} onChange={(event) => update("availability", event.target.value)} />
             </label>
           </div>
+          <div className="profile-form-section-title">
+            <span>02</span><div><strong>Your opportunity signal</strong><small>Specific beats impressive</small></div>
+          </div>
           <label>
-            Skills
-            <input defaultValue="Canva, social media, basic web design" />
+            Skills <small>Separate each with a comma</small>
+            <input value={draft.skills.join(", ")} onChange={(event) => update("skills", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
           </label>
           <label>
-            Interests and causes
-            <input defaultValue="Technology, design, youth education" />
+            Interests <small>Optional</small>
+            <input value={draft.interests.join(", ")} onChange={(event) => update("interests", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
+          </label>
+          <label>
+            Causes you care about <small>Optional</small>
+            <input value={draft.causes.join(", ")} onChange={(event) => update("causes", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
           </label>
           <label>
             Career goal
-            <input defaultValue="Explore design and technology for social impact" />
+            <input value={draft.careerGoal} onChange={(event) => update("careerGoal", event.target.value)} />
           </label>
+          <div className="profile-option-grid">
+            <label>Experience level<select value={draft.experienceLevel} onChange={(event) => update("experienceLevel", event.target.value)}><option>Just exploring</option><option>Growing portfolio</option><option>Ready to contribute</option></select></label>
+            <label>Best work style<select value={draft.workStyle} onChange={(event) => update("workStyle", event.target.value)}><option>Creative team</option><option>Independent focus</option><option>People-facing</option><option>Research and analysis</option></select></label>
+            <label>Transportation <small>Optional</small><select value={draft.transportation} onChange={(event) => update("transportation", event.target.value)}><option>Local rides available</option><option>Public transit</option><option>Remote only</option><option>Flexible</option></select></label>
+            <label>Languages <small>Optional</small><input value={draft.languages.join(", ")} onChange={(event) => update("languages", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
+          </div>
+
+          <div className="ai-story-panel">
+            <div className="ai-story-head">
+              <span className="ai-spark">✦</span>
+              <div><strong>Tell MYIN in your own words</strong><small>AI enrichment preview — you approve every suggestion</small></div>
+            </div>
+            <textarea value={draft.narrative} onChange={(event) => update("narrative", event.target.value)} placeholder="Example: I help my MSA with flyers, enjoy tutoring younger students, and want to learn how technology can help my community..." />
+            <div className="ai-story-action">
+              <small>Your story stays private and is never shown directly to organizations.</small>
+              <button type="button" onClick={analyzeStory} disabled={analyzing || !draft.narrative.trim()}>{analyzing ? "Reading your story..." : "Find hidden strengths"}</button>
+            </div>
+            {suggestions.length > 0 && (
+              <div className="ai-suggestion-box">
+                <div><strong>Suggested signals</strong><small>Review before adding</small></div>
+                {analysisNote && <p>{analysisNote}</p>}
+                <div className="suggestion-chips">{suggestions.map((suggestion) => <span key={suggestion}>{suggestion}</span>)}</div>
+                <div className="suggestion-actions"><button type="button" onClick={() => setSuggestions([])}>Dismiss</button><button type="button" onClick={acceptSuggestions}>Add to my profile</button></div>
+              </div>
+            )}
+          </div>
           <label className="discoverable-control">
             <input type="checkbox" defaultChecked />
             <span>
@@ -1769,6 +2271,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             }`}
             onClick={() => {
               setSaved(true);
+              onSave(draft);
               window.setTimeout(onClose, 650);
             }}
           >
@@ -1782,6 +2285,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
 
 export default function Home() {
   const [view, setView] = useState<View>("home");
+  const [profile, setProfile] = useState<StudentProfile>(initialStudentProfile);
+  const [createdOpportunities, setCreatedOpportunities] = useState<Opportunity[]>([]);
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
@@ -1801,10 +2306,14 @@ export default function Home() {
             savedIds?: number[];
             appliedIds?: number[];
             dismissedIds?: number[];
+            profile?: StudentProfile;
+            createdOpportunities?: Opportunity[];
           };
           setSavedIds(state.savedIds ?? []);
           setAppliedIds(state.appliedIds ?? []);
           setDismissedIds(state.dismissedIds ?? []);
+          setProfile(state.profile ?? initialStudentProfile);
+          setCreatedOpportunities(state.createdOpportunities ?? []);
         }
       } catch {
         // The demo still works if local storage is unavailable.
@@ -1819,9 +2328,9 @@ export default function Home() {
     if (!hydrated) return;
     window.localStorage.setItem(
       "myin-demo-state",
-      JSON.stringify({ savedIds, appliedIds, dismissedIds }),
+      JSON.stringify({ savedIds, appliedIds, dismissedIds, profile, createdOpportunities }),
     );
-  }, [appliedIds, dismissedIds, hydrated, savedIds]);
+  }, [appliedIds, createdOpportunities, dismissedIds, hydrated, profile, savedIds]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1862,6 +2371,8 @@ export default function Home() {
           <AppHeader view={view} onNavigate={navigate} />
           {view === "student" && (
             <StudentView
+              profile={profile}
+              createdOpportunities={createdOpportunities}
               savedIds={savedIds}
               appliedIds={appliedIds}
               dismissedIds={dismissedIds}
@@ -1873,7 +2384,7 @@ export default function Home() {
               onProfile={() => setShowProfile(true)}
             />
           )}
-          {view === "organization" && <OrganizationView />}
+          {view === "organization" && <OrganizationView onPublishOpportunity={(opportunity) => setCreatedOpportunities((current) => [...current.filter((item) => item.id !== opportunity.id), opportunity])} />}
           {view === "impact" && <ImpactView />}
         </div>
       )}
@@ -1887,7 +2398,7 @@ export default function Home() {
         />
       )}
       {showEmail && <EmailModal onClose={() => setShowEmail(false)} />}
-      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showProfile && <ProfileModal profile={profile} onSave={setProfile} onClose={() => setShowProfile(false)} />}
       {notice && (
         <div className="toast" role="status">
           <span>✓</span>
