@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { calculateMatch, type MatchBreakdownItem } from "../lib/matching";
 
 type View = "home" | "student" | "organization" | "impact";
 type OrgTab = "overview" | "submit" | "matches";
 type Filter = "All" | "Internships" | "Volunteer" | "Mentorship";
 
-type ScoreItem = {
-  label: string;
-  earned: number;
-  possible: number;
-};
+type ScoreItem = MatchBreakdownItem;
 
 type Opportunity = {
   id: number;
@@ -42,17 +39,29 @@ type Extraction = {
   supervision: string;
   skills: string;
   impact: string;
+  description: string;
+  interests: string;
+  deadline: string;
 };
 
-type ExtractionField = keyof Extraction;
-
-type ExtractionResult = {
-  extraction: Extraction;
-  completeness: number;
-  needsConfirmation: ExtractionField[];
+const aminaProfile = {
+  age: 16,
+  interests: [
+    "Youth education",
+    "Community service",
+    "Media",
+    "Technology",
+    "Design",
+  ],
+  skills: ["Canva", "Social media", "Web design"],
+  careerGoals: ["Technology", "Design", "Media"],
+  availability: ["Saturday", "Weekend"],
+  location: "Dearborn",
+  formats: ["Hybrid", "Remote", "In person"],
+  opportunityTypes: ["Volunteer", "Internship", "Mentorship"],
 };
 
-const extractionFields: ExtractionField[] = [
+const extractionFields = [
   "title",
   "type",
   "date",
@@ -63,7 +72,15 @@ const extractionFields: ExtractionField[] = [
   "supervision",
   "skills",
   "impact",
-];
+] as const;
+
+type ExtractionField = (typeof extractionFields)[number];
+
+type ExtractionResult = {
+  extraction: Omit<Extraction, "description" | "interests" | "deadline">;
+  completeness: number;
+  needsConfirmation: ExtractionField[];
+};
 
 function summarizeExtraction(extraction: Extraction) {
   const needsConfirmation = extractionFields.filter(
@@ -690,6 +707,7 @@ function OpportunityCard({
 }
 
 function StudentView({
+  opportunities,
   savedIds,
   appliedIds,
   dismissedIds,
@@ -700,6 +718,7 @@ function StudentView({
   onEmail,
   onProfile,
 }: {
+  opportunities: Opportunity[];
   savedIds: number[];
   appliedIds: number[];
   dismissedIds: number[];
@@ -730,7 +749,7 @@ function StudentView({
         );
       return filterMatches && searchMatches;
     });
-  }, [dismissedIds, filter, search]);
+  }, [dismissedIds, filter, opportunities, search]);
 
   return (
     <main className="dashboard-page">
@@ -793,7 +812,10 @@ function StudentView({
           <div>
             <span className="kicker">SATURDAY, JULY 25</span>
             <h1>Good morning, Amina.</h1>
-            <p>We found 4 opportunities worth your attention.</p>
+            <p>
+              We found {opportunities.length} opportunities worth your
+              attention.
+            </p>
           </div>
           <button className="email-preview-button" onClick={onEmail}>
             <span aria-hidden="true">✉</span>
@@ -1073,10 +1095,11 @@ function SubmissionView({
       <div className="publish-success">
         <span className="success-mark">✓</span>
         <span className="kicker">READY FOR REVIEW</span>
-        <h1>Your opportunity has been structured.</h1>
+        <h1>Your opportunity is ready for student matching.</h1>
         <p>
-          {extraction?.title || "Your opportunity"} is saved and ready for an
-          administrator to approve before students can see it.
+          {extraction?.title || "Your opportunity"} is now visible in
+          Amina&apos;s demo dashboard. Contact details remain private until a
+          controlled introduction is approved.
         </p>
         <div className="success-summary">
           <div>
@@ -1143,6 +1166,9 @@ function SubmissionView({
           </button>
           <small className="description-limit" id="description-limit">
             {description.length.toLocaleString()} / 5,000 characters
+          </small>
+          <small className="demo-disclosure">
+            Gemini creates an editable draft; it never publishes automatically.
           </small>
         </section>
 
@@ -1316,6 +1342,16 @@ function SubmissionView({
                   onChange={(event) => updateField("skills", event.target.value)}
                 />
               </label>
+              <label className="wide-field">
+                Student-friendly description
+                <textarea
+                  value={extraction.description}
+                  onChange={(event) =>
+                    updateField("description", event.target.value)
+                  }
+                  rows={3}
+                />
+              </label>
               <label
                 className={`wide-field ${
                   needsReview("supervision") ? "attention-field" : ""
@@ -1348,6 +1384,12 @@ function SubmissionView({
               <button
                 className="button button-dark full-width"
                 onClick={onPublish}
+                disabled={
+                  !extraction.title.trim() ||
+                  !extraction.description.trim() ||
+                  !extraction.type ||
+                  !extraction.supervision.trim()
+                }
               >
                 Submit for safety review
               </button>
@@ -1362,16 +1404,24 @@ function SubmissionView({
 function MatchesView({
   shortlisted,
   onShortlist,
+  hasInterest,
+  opportunityTitle,
 }: {
   shortlisted: number[];
   onShortlist: (id: number) => void;
+  hasInterest: boolean;
+  opportunityTitle: string | null;
 }) {
   return (
     <div className="matches-view">
       <div className="matches-heading">
         <div>
           <span className="kicker">EXPLAINABLE RECOMMENDATIONS</span>
-          <h1>12 students match your digital media role.</h1>
+          <h1>
+            {hasInterest
+              ? "Amina expressed interest in your new opportunity."
+              : "12 students match your digital media role."}
+          </h1>
           <p>
             Only students who opted into discovery or expressed interest are
             included.
@@ -1389,6 +1439,12 @@ function MatchesView({
           details, and precise locations are hidden.
         </p>
       </div>
+      {hasInterest && (
+        <p className="form-success">
+          New interest received for {opportunityTitle}. Amina opted in to this
+          privacy-safe view.
+        </p>
+      )}
       <div className="candidate-list">
         {candidates.map((candidate, index) => {
           const isShortlisted = shortlisted.includes(candidate.id);
@@ -1438,7 +1494,15 @@ function MatchesView({
   );
 }
 
-function OrganizationView() {
+function OrganizationView({
+  onPublishOpportunity,
+  publishedOpportunities,
+  appliedIds,
+}: {
+  onPublishOpportunity: (opportunity: Opportunity) => void;
+  publishedOpportunities: Opportunity[];
+  appliedIds: number[];
+}) {
   const [tab, setTab] = useState<OrgTab>("overview");
   const [description, setDescription] = useState(defaultDescription);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
@@ -1487,7 +1551,12 @@ function OrganizationView() {
         );
       }
 
-      setExtraction(payload.extraction);
+      setExtraction({
+        ...payload.extraction,
+        description,
+        interests: "",
+        deadline: "",
+      });
       setCompleteness(payload.completeness);
       setNeedsConfirmation(payload.needsConfirmation);
     } catch (error) {
@@ -1507,6 +1576,57 @@ function OrganizationView() {
         ? current.filter((candidateId) => candidateId !== id)
         : [...current, id],
     );
+  };
+
+  const publish = () => {
+    if (!extraction) {
+      return;
+    }
+
+    const skills = extraction.skills
+      .split(",")
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+    const interests = extraction.interests
+      .split(",")
+      .map((interest) => interest.trim())
+      .filter(Boolean);
+    const match = calculateMatch(aminaProfile, {
+      type: extraction.type,
+      skills,
+      interests,
+      careerGoals: interests,
+      availability: extraction.date.toLowerCase().includes("saturday")
+        ? ["Saturday"]
+        : [],
+      ageRange: extraction.ageRange,
+      location: extraction.location || "Anywhere",
+      format: extraction.format,
+    });
+
+    onPublishOpportunity({
+      id: Date.now(),
+      title: extraction.title,
+      organization: "Rahma Community Center",
+      organizationMark: "RC",
+      type: (
+        ["Volunteer", "Internship", "Mentorship"].includes(extraction.type)
+          ? extraction.type
+          : "Volunteer"
+      ) as Opportunity["type"],
+      format: extraction.format,
+      location: extraction.location || "Location to confirm",
+      deadline: extraction.deadline || "Date to confirm",
+      commitment: extraction.commitment || "Schedule to confirm",
+      description: extraction.description,
+      skills,
+      matchReasons: match.reasons,
+      score: match.score,
+      breakdown: match.breakdown,
+      accent: "coral",
+      new: true,
+    });
+    setPublished(true);
   };
 
   return (
@@ -1562,12 +1682,23 @@ function OrganizationView() {
             isExtracting={isExtracting}
             extractionError={extractionError}
             onExtract={extract}
-            onPublish={() => setPublished(true)}
+            onPublish={publish}
             published={published}
           />
         )}
         {tab === "matches" && (
-          <MatchesView shortlisted={shortlisted} onShortlist={toggleShortlist} />
+          <MatchesView
+            shortlisted={shortlisted}
+            onShortlist={toggleShortlist}
+            hasInterest={publishedOpportunities.some((opportunity) =>
+              appliedIds.includes(opportunity.id),
+            )}
+            opportunityTitle={
+              publishedOpportunities.find((opportunity) =>
+                appliedIds.includes(opportunity.id),
+              )?.title ?? null
+            }
+          />
         )}
       </section>
     </main>
@@ -1968,6 +2099,10 @@ export default function Home() {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
+  const [publishedOpportunities, setPublishedOpportunities] = useState<
+    Opportunity[]
+  >([]);
+  const [resetKey, setResetKey] = useState(0);
   const [selectedOpportunity, setSelectedOpportunity] =
     useState<Opportunity | null>(null);
   const [showEmail, setShowEmail] = useState(false);
@@ -1984,10 +2119,12 @@ export default function Home() {
             savedIds?: number[];
             appliedIds?: number[];
             dismissedIds?: number[];
+            publishedOpportunities?: Opportunity[];
           };
           setSavedIds(state.savedIds ?? []);
           setAppliedIds(state.appliedIds ?? []);
           setDismissedIds(state.dismissedIds ?? []);
+          setPublishedOpportunities(state.publishedOpportunities ?? []);
         }
       } catch {
         // The demo still works if local storage is unavailable.
@@ -2006,12 +2143,23 @@ export default function Home() {
     try {
       window.localStorage.setItem(
         "myin-demo-state",
-        JSON.stringify({ savedIds, appliedIds, dismissedIds }),
+        JSON.stringify({
+          savedIds,
+          appliedIds,
+          dismissedIds,
+          publishedOpportunities,
+        }),
       );
     } catch {
       // The demo still works if local storage is unavailable or full.
     }
-  }, [appliedIds, dismissedIds, hydrated, savedIds]);
+  }, [
+    appliedIds,
+    dismissedIds,
+    hydrated,
+    publishedOpportunities,
+    savedIds,
+  ]);
 
   useEffect(() => {
     if (!notice) {
@@ -2031,7 +2179,9 @@ export default function Home() {
     setSavedIds(
       isSaved ? savedIds.filter((item) => item !== id) : [...savedIds, id],
     );
-    setNotice(isSaved ? "Removed from saved opportunities." : "Opportunity saved.");
+    setNotice(
+      isSaved ? "Removed from saved opportunities." : "Opportunity saved.",
+    );
   };
 
   const apply = (id: number) => {
@@ -2051,6 +2201,23 @@ export default function Home() {
     setNotice("Got it. We’ll use that feedback to improve your matches.");
   };
 
+  const resetDemo = () => {
+    setSavedIds([]);
+    setAppliedIds([]);
+    setDismissedIds([]);
+    setPublishedOpportunities([]);
+    setSelectedOpportunity(null);
+    setResetKey((value) => value + 1);
+    try {
+      window.localStorage.removeItem("myin-demo-state");
+    } catch {
+      // Local storage is optional.
+    }
+    setNotice("Demo reset. Seeded opportunities are restored.");
+  };
+
+  const allOpportunities = [...publishedOpportunities, ...opportunities];
+
   return (
     <>
       {view === "home" ? (
@@ -2060,6 +2227,7 @@ export default function Home() {
           <AppHeader view={view} onNavigate={navigate} />
           {view === "student" && (
             <StudentView
+              opportunities={allOpportunities}
               savedIds={savedIds}
               appliedIds={appliedIds}
               dismissedIds={dismissedIds}
@@ -2071,7 +2239,19 @@ export default function Home() {
               onProfile={() => setShowProfile(true)}
             />
           )}
-          {view === "organization" && <OrganizationView />}
+          {view === "organization" && (
+            <OrganizationView
+              key={resetKey}
+              onPublishOpportunity={(opportunity) =>
+                setPublishedOpportunities((current) => [
+                  opportunity,
+                  ...current.filter((item) => item.id !== opportunity.id),
+                ])
+              }
+              publishedOpportunities={publishedOpportunities}
+              appliedIds={appliedIds}
+            />
+          )}
           {view === "impact" && <ImpactView />}
         </div>
       )}
@@ -2091,6 +2271,11 @@ export default function Home() {
           <span>✓</span>
           {notice}
         </div>
+      )}
+      {view !== "home" && (
+        <button className="reset-demo" onClick={resetDemo}>
+          Reset demo
+        </button>
       )}
     </>
   );
