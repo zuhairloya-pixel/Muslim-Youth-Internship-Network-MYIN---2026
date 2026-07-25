@@ -30,11 +30,11 @@ type Opportunity = {
 
 type Extraction = {
   title: string;
-  type: string;
+  type: "Volunteer" | "Internship" | "Mentorship" | "";
   date: string;
   commitment: string;
   location: string;
-  format: string;
+  format: "In person" | "Remote" | "Hybrid" | "";
   ageRange: string;
   supervision: string;
   skills: string;
@@ -42,16 +42,60 @@ type Extraction = {
   description: string;
   interests: string;
   deadline: string;
-  missingFields: string[];
-  confidence: number;
 };
 
 const aminaProfile = {
-  age: 16, interests: ["Youth education", "Community service", "Media", "Technology", "Design"],
-  skills: ["Canva", "Social media", "Web design"], careerGoals: ["Technology", "Design", "Media"],
-  availability: ["Saturday", "Weekend"], location: "Dearborn", formats: ["Hybrid", "Remote", "In person"],
+  age: 16,
+  interests: [
+    "Youth education",
+    "Community service",
+    "Media",
+    "Technology",
+    "Design",
+  ],
+  skills: ["Canva", "Social media", "Web design"],
+  careerGoals: ["Technology", "Design", "Media"],
+  availability: ["Saturday", "Weekend"],
+  location: "Dearborn",
+  formats: ["Hybrid", "Remote", "In person"],
   opportunityTypes: ["Volunteer", "Internship", "Mentorship"],
 };
+
+const extractionFields = [
+  "title",
+  "type",
+  "date",
+  "commitment",
+  "location",
+  "format",
+  "ageRange",
+  "supervision",
+  "skills",
+  "impact",
+] as const;
+
+type ExtractionField = (typeof extractionFields)[number];
+
+type ExtractionResult = {
+  extraction: Omit<Extraction, "description" | "interests" | "deadline">;
+  completeness: number;
+  needsConfirmation: ExtractionField[];
+};
+
+function summarizeExtraction(extraction: Extraction) {
+  const needsConfirmation = extractionFields.filter(
+    (field) => !extraction[field].trim(),
+  );
+
+  return {
+    completeness: Math.round(
+      ((extractionFields.length - needsConfirmation.length) /
+        extractionFields.length) *
+        100,
+    ),
+    needsConfirmation,
+  };
+}
 
 const opportunities: Opportunity[] = [
   {
@@ -690,7 +734,9 @@ function StudentView({
 
   const filtered = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      if (dismissedIds.includes(opportunity.id)) return false;
+      if (dismissedIds.includes(opportunity.id)) {
+        return false;
+      }
       const filterMatches =
         filter === "All" ||
         (filter === "Internships" && opportunity.type === "Internship") ||
@@ -703,7 +749,7 @@ function StudentView({
         );
       return filterMatches && searchMatches;
     });
-  }, [dismissedIds, filter, search]);
+  }, [dismissedIds, filter, opportunities, search]);
 
   return (
     <main className="dashboard-page">
@@ -766,7 +812,10 @@ function StudentView({
           <div>
             <span className="kicker">SATURDAY, JULY 25</span>
             <h1>Good morning, Amina.</h1>
-            <p>We found {opportunities.length} opportunities worth your attention.</p>
+            <p>
+              We found {opportunities.length} opportunities worth your
+              attention.
+            </p>
           </div>
           <button className="email-preview-button" onClick={onEmail}>
             <span aria-hidden="true">✉</span>
@@ -1010,27 +1059,36 @@ function SubmissionView({
   description,
   setDescription,
   extraction,
-  setExtraction,
+  onUpdateExtraction,
+  completeness,
+  needsConfirmation,
+  isExtracting,
+  extractionError,
   onExtract,
   onPublish,
   published,
-  extracting,
-  error,
 }: {
   description: string;
   setDescription: (value: string) => void;
   extraction: Extraction | null;
-  setExtraction: (value: Extraction) => void;
+  onUpdateExtraction: (value: Extraction) => void;
+  completeness: number;
+  needsConfirmation: ExtractionField[];
+  isExtracting: boolean;
+  extractionError: string | null;
   onExtract: () => void;
   onPublish: () => void;
   published: boolean;
-  extracting: boolean;
-  error: string;
 }) {
   const updateField = (field: keyof Extraction, value: string) => {
-    if (!extraction) return;
-    setExtraction({ ...extraction, [field]: value });
+    if (!extraction) {
+      return;
+    }
+    onUpdateExtraction({ ...extraction, [field]: value } as Extraction);
   };
+  const needsReview = (field: ExtractionField) =>
+    needsConfirmation.includes(field);
+  const completedFields = extractionFields.length - needsConfirmation.length;
 
   if (published) {
     return (
@@ -1039,8 +1097,9 @@ function SubmissionView({
         <span className="kicker">READY FOR REVIEW</span>
         <h1>Your opportunity is ready for student matching.</h1>
         <p>
-          It is now visible in Amina&apos;s demo dashboard. Contact details remain
-          private until a controlled introduction is approved.
+          {extraction?.title || "Your opportunity"} is now visible in
+          Amina&apos;s demo dashboard. Contact details remain private until a
+          controlled introduction is approved.
         </p>
         <div className="success-summary">
           <div>
@@ -1085,6 +1144,8 @@ function SubmissionView({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={11}
+              maxLength={5_000}
+              aria-describedby="description-limit"
             />
           </label>
           <div className="input-help">
@@ -1095,20 +1156,27 @@ function SubmissionView({
           <button
             className="button button-gold full-width"
             onClick={onExtract}
-            disabled={!description.trim() || extracting}
+            disabled={!description.trim() || isExtracting}
             data-testid="extract-button"
           >
-            <span aria-hidden="true">✦</span> {extracting ? "Structuring opportunity…" : "Extract opportunity details"}
+            <span aria-hidden="true">✦</span>{" "}
+            {isExtracting
+              ? "Extracting details…"
+              : "Extract opportunity details"}
           </button>
+          <small className="description-limit" id="description-limit">
+            {description.length.toLocaleString()} / 5,000 characters
+          </small>
           <small className="demo-disclosure">
             Gemini creates an editable draft; it never publishes automatically.
           </small>
-          {error && <p className="form-error" role="alert">{error}</p>}
         </section>
 
         <section
           className={`panel extraction-review ${extraction ? "ready" : ""}`}
           data-testid="extraction-review"
+          aria-busy={isExtracting}
+          aria-live="polite"
         >
           <div className="number-heading">
             <span>2</span>
@@ -1117,7 +1185,37 @@ function SubmissionView({
               <p>You stay in control. Edit anything before submitting.</p>
             </div>
           </div>
-          {!extraction ? (
+          {isExtracting ? (
+            <div
+              className="waiting-state loading-state"
+              data-testid="extracting-state"
+            >
+              <div className="waiting-graphic" aria-hidden="true">
+                <span>✦</span>
+                <i />
+                <i />
+                <i />
+              </div>
+              <h3>Structuring your opportunity…</h3>
+              <p>
+                MYIN is identifying the details you provided and leaving
+                anything uncertain blank for your review.
+              </p>
+            </div>
+          ) : extractionError ? (
+            <div className="extraction-error-state" role="alert">
+              <span aria-hidden="true">!</span>
+              <h3>We couldn&apos;t extract those details.</h3>
+              <p>{extractionError}</p>
+              <button
+                className="button button-outline compact"
+                onClick={onExtract}
+                disabled={!description.trim()}
+              >
+                Try again
+              </button>
+            </div>
+          ) : !extraction ? (
             <div className="waiting-state">
               <div className="waiting-graphic">
                 <span>✦</span>
@@ -1133,15 +1231,30 @@ function SubmissionView({
             </div>
           ) : (
             <div className="extraction-form">
-              <div className="confidence-banner">
-                <span>✓</span>
+              <div
+                className={`confidence-banner ${
+                  needsConfirmation.length ? "needs-review" : ""
+                }`}
+              >
+                <span>{needsConfirmation.length ? "!" : "✓"}</span>
                 <p>
-                  <strong>Editable AI draft</strong>
-                  <small>{extraction.missingFields.length ? `Confirm: ${extraction.missingFields.join(", ")}` : "Review every field before publishing"}</small>
+                  <strong>Extraction completeness</strong>
+                  <small>
+                    {completedFields} fields found ·{" "}
+                    {needsConfirmation.length
+                      ? `${needsConfirmation.length} ${
+                          needsConfirmation.length === 1 ? "field" : "fields"
+                        } need confirmation`
+                      : "all fields are ready to review"}
+                  </small>
                 </p>
-                <b>{Math.round(extraction.confidence * 100)}%</b>
+                <b>{completeness}%</b>
               </div>
-              <label className="wide-field">
+              <label
+                className={`wide-field ${
+                  needsReview("title") ? "attention-field" : ""
+                }`}
+              >
                 Opportunity title
                 <input
                   value={extraction.title}
@@ -1149,25 +1262,30 @@ function SubmissionView({
                 />
               </label>
               <div className="form-grid">
-                <label>
+                <label className={needsReview("type") ? "attention-field" : ""}>
                   Type
                   <select
                     value={extraction.type}
                     onChange={(event) => updateField("type", event.target.value)}
                   >
+                    <option value="">Needs confirmation</option>
                     <option>Volunteer</option>
                     <option>Internship</option>
                     <option>Mentorship</option>
                   </select>
                 </label>
-                <label>
+                <label className={needsReview("date") ? "attention-field" : ""}>
                   Date
                   <input
                     value={extraction.date}
                     onChange={(event) => updateField("date", event.target.value)}
                   />
                 </label>
-                <label>
+                <label
+                  className={
+                    needsReview("commitment") ? "attention-field" : ""
+                  }
+                >
                   Commitment
                   <input
                     value={extraction.commitment}
@@ -1176,18 +1294,23 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label>
+                <label
+                  className={needsReview("format") ? "attention-field" : ""}
+                >
                   Format
                   <select
                     value={extraction.format}
                     onChange={(event) => updateField("format", event.target.value)}
                   >
+                    <option value="">Needs confirmation</option>
                     <option>In person</option>
                     <option>Remote</option>
                     <option>Hybrid</option>
                   </select>
                 </label>
-                <label>
+                <label
+                  className={needsReview("ageRange") ? "attention-field" : ""}
+                >
                   Age range
                   <input
                     value={extraction.ageRange}
@@ -1196,7 +1319,9 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label>
+                <label
+                  className={needsReview("location") ? "attention-field" : ""}
+                >
                   Location
                   <input
                     value={extraction.location}
@@ -1206,7 +1331,11 @@ function SubmissionView({
                   />
                 </label>
               </div>
-              <label className="wide-field">
+              <label
+                className={`wide-field ${
+                  needsReview("skills") ? "attention-field" : ""
+                }`}
+              >
                 Skills requested
                 <input
                   value={extraction.skills}
@@ -1215,9 +1344,19 @@ function SubmissionView({
               </label>
               <label className="wide-field">
                 Student-friendly description
-                <textarea value={extraction.description} onChange={(event) => updateField("description", event.target.value)} rows={3} />
+                <textarea
+                  value={extraction.description}
+                  onChange={(event) =>
+                    updateField("description", event.target.value)
+                  }
+                  rows={3}
+                />
               </label>
-              <label className="wide-field attention-field">
+              <label
+                className={`wide-field ${
+                  needsReview("supervision") ? "attention-field" : ""
+                }`}
+              >
                 Adult supervision
                 <input
                   value={extraction.supervision}
@@ -1225,12 +1364,32 @@ function SubmissionView({
                     updateField("supervision", event.target.value)
                   }
                 />
-                <small>Confirm the supervising adult before publication.</small>
+                {needsReview("supervision") && (
+                  <small>
+                    Confirm the supervising adult before publication.
+                  </small>
+                )}
+              </label>
+              <label
+                className={`wide-field ${
+                  needsReview("impact") ? "attention-field" : ""
+                }`}
+              >
+                Community impact
+                <input
+                  value={extraction.impact}
+                  onChange={(event) => updateField("impact", event.target.value)}
+                />
               </label>
               <button
                 className="button button-dark full-width"
                 onClick={onPublish}
-                disabled={!extraction.title.trim() || !extraction.description.trim() || !extraction.type || !extraction.supervision.trim()}
+                disabled={
+                  !extraction.title.trim() ||
+                  !extraction.description.trim() ||
+                  !extraction.type ||
+                  !extraction.supervision.trim()
+                }
               >
                 Submit for safety review
               </button>
@@ -1258,7 +1417,11 @@ function MatchesView({
       <div className="matches-heading">
         <div>
           <span className="kicker">EXPLAINABLE RECOMMENDATIONS</span>
-          <h1>{hasInterest ? "Amina expressed interest in your new opportunity." : "12 students match your digital media role."}</h1>
+          <h1>
+            {hasInterest
+              ? "Amina expressed interest in your new opportunity."
+              : "12 students match your digital media role."}
+          </h1>
           <p>
             Only students who opted into discovery or expressed interest are
             included.
@@ -1276,7 +1439,12 @@ function MatchesView({
           details, and precise locations are hidden.
         </p>
       </div>
-      {hasInterest && <p className="form-success">New interest received for {opportunityTitle}. Amina opted in to this privacy-safe view.</p>}
+      {hasInterest && (
+        <p className="form-success">
+          New interest received for {opportunityTitle}. Amina opted in to this
+          privacy-safe view.
+        </p>
+      )}
       <div className="candidate-list">
         {candidates.map((candidate, index) => {
           const isShortlisted = shortlisted.includes(candidate.id);
@@ -1326,61 +1494,81 @@ function MatchesView({
   );
 }
 
-function OrganizationView({ onPublishOpportunity, publishedOpportunities, appliedIds, resetKey }: { onPublishOpportunity: (opportunity: Opportunity) => void; publishedOpportunities: Opportunity[]; appliedIds: number[]; resetKey: number }) {
+function OrganizationView({
+  onPublishOpportunity,
+  publishedOpportunities,
+  appliedIds,
+}: {
+  onPublishOpportunity: (opportunity: Opportunity) => void;
+  publishedOpportunities: Opportunity[];
+  appliedIds: number[];
+}) {
   const [tab, setTab] = useState<OrgTab>("overview");
   const [description, setDescription] = useState(defaultDescription);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
+  const [completeness, setCompleteness] = useState(0);
+  const [needsConfirmation, setNeedsConfirmation] = useState<ExtractionField[]>(
+    [],
+  );
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
   const [shortlisted, setShortlisted] = useState<number[]>([]);
-  const [extracting, setExtracting] = useState(false);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    setTab("overview"); setDescription(defaultDescription); setExtraction(null); setPublished(false); setShortlisted([]); setError("");
-  }, [resetKey]);
+  const updateExtraction = (value: Extraction) => {
+    const summary = summarizeExtraction(value);
+    setExtraction(value);
+    setCompleteness(summary.completeness);
+    setNeedsConfirmation(summary.needsConfirmation);
+  };
 
   const extract = async () => {
-    if (!description.trim() || extracting) return;
-    setExtracting(true);
-    setError("");
+    if (isExtracting || !description.trim()) {
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractionError(null);
+    setExtraction(null);
+    setCompleteness(0);
+    setNeedsConfirmation([]);
+
     try {
-      const response = await fetch("/api/extract", {
+      const response = await fetch("/api/extract-opportunity", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description }),
       });
-      const result = (await response.json()) as Record<string, unknown>;
-      if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "Unable to structure this listing.");
-      const text = (key: string) => typeof result[key] === "string" ? result[key] : "";
-      const list = (key: string) => Array.isArray(result[key]) ? result[key].filter((item): item is string => typeof item === "string") : [];
+      const payload = (await response.json()) as
+        | ExtractionResult
+        | { error?: { message?: string } };
+
+      if (!response.ok || !("extraction" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error?.message
+            ? payload.error.message
+            : "MYIN could not extract this opportunity. Please try again.",
+        );
+      }
+
       setExtraction({
-        title: text("title"), type: text("type") || "Volunteer", description: text("description") || description,
-        skills: list("skills").join(", "), interests: list("interests").join(", "), date: text("date"),
-        commitment: text("commitment"), location: text("location"), format: text("format") || "In person",
-        ageRange: text("ageRange"), supervision: text("supervision"), deadline: text("deadline"), impact: text("impact"),
-        missingFields: list("missingFields"), confidence: typeof result.confidence === "number" ? result.confidence : 0,
+        ...payload.extraction,
+        description,
+        interests: "",
+        deadline: "",
       });
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to structure this listing. Please try again.");
+      setCompleteness(payload.completeness);
+      setNeedsConfirmation(payload.needsConfirmation);
+    } catch (error) {
+      setExtractionError(
+        error instanceof Error
+          ? error.message
+          : "MYIN could not extract this opportunity. Please try again.",
+      );
     } finally {
-      setExtracting(false);
+      setIsExtracting(false);
     }
-    return;
-    /* Legacy local extraction intentionally disabled: API failures must never invent listing data.
-    setExtraction({
-      title: description,
-      type: "Volunteer",
-      date: "Next Saturday, 10 AM–2 PM",
-      commitment: "4 hours",
-      location: "Rahma Community Center",
-      format: "In person",
-      ageRange: "14–18",
-      supervision: "Adult volunteer coordinator",
-      skills: "Photography, Canva, social media, event support",
-      impact: "Supports local families experiencing food insecurity",
-    });
   };
-    */
 
   const toggleShortlist = (id: number) => {
     setShortlisted((current) =>
@@ -1391,11 +1579,53 @@ function OrganizationView({ onPublishOpportunity, publishedOpportunities, applie
   };
 
   const publish = () => {
-    if (!extraction) return;
-    const skills = extraction.skills.split(",").map((skill) => skill.trim()).filter(Boolean);
-    const interests = extraction.interests.split(",").map((interest) => interest.trim()).filter(Boolean);
-    const match = calculateMatch(aminaProfile, { type: extraction.type, skills, interests, careerGoals: interests, availability: extraction.date.toLowerCase().includes("saturday") ? ["Saturday"] : [], ageRange: extraction.ageRange, location: extraction.location || "Anywhere", format: extraction.format });
-    onPublishOpportunity({ id: Date.now(), title: extraction.title, organization: "Rahma Community Center", organizationMark: "RC", type: (["Volunteer", "Internship", "Mentorship"].includes(extraction.type) ? extraction.type : "Volunteer") as Opportunity["type"], format: extraction.format, location: extraction.location || "Location to confirm", deadline: extraction.deadline || "Date to confirm", commitment: extraction.commitment || "Schedule to confirm", description: extraction.description, skills, matchReasons: match.reasons, score: match.score, breakdown: match.breakdown, accent: "coral", new: true });
+    if (!extraction) {
+      return;
+    }
+
+    const skills = extraction.skills
+      .split(",")
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+    const interests = extraction.interests
+      .split(",")
+      .map((interest) => interest.trim())
+      .filter(Boolean);
+    const match = calculateMatch(aminaProfile, {
+      type: extraction.type,
+      skills,
+      interests,
+      careerGoals: interests,
+      availability: extraction.date.toLowerCase().includes("saturday")
+        ? ["Saturday"]
+        : [],
+      ageRange: extraction.ageRange,
+      location: extraction.location || "Anywhere",
+      format: extraction.format,
+    });
+
+    onPublishOpportunity({
+      id: Date.now(),
+      title: extraction.title,
+      organization: "Rahma Community Center",
+      organizationMark: "RC",
+      type: (
+        ["Volunteer", "Internship", "Mentorship"].includes(extraction.type)
+          ? extraction.type
+          : "Volunteer"
+      ) as Opportunity["type"],
+      format: extraction.format,
+      location: extraction.location || "Location to confirm",
+      deadline: extraction.deadline || "Date to confirm",
+      commitment: extraction.commitment || "Schedule to confirm",
+      description: extraction.description,
+      skills,
+      matchReasons: match.reasons,
+      score: match.score,
+      breakdown: match.breakdown,
+      accent: "coral",
+      new: true,
+    });
     setPublished(true);
   };
 
@@ -1446,16 +1676,29 @@ function OrganizationView({ onPublishOpportunity, publishedOpportunities, applie
             description={description}
             setDescription={setDescription}
             extraction={extraction}
-            setExtraction={setExtraction}
+            onUpdateExtraction={updateExtraction}
+            completeness={completeness}
+            needsConfirmation={needsConfirmation}
+            isExtracting={isExtracting}
+            extractionError={extractionError}
             onExtract={extract}
             onPublish={publish}
             published={published}
-            extracting={extracting}
-            error={error}
           />
         )}
         {tab === "matches" && (
-          <MatchesView shortlisted={shortlisted} onShortlist={toggleShortlist} hasInterest={publishedOpportunities.some((opportunity) => appliedIds.includes(opportunity.id))} opportunityTitle={publishedOpportunities.find((opportunity) => appliedIds.includes(opportunity.id))?.title ?? null} />
+          <MatchesView
+            shortlisted={shortlisted}
+            onShortlist={toggleShortlist}
+            hasInterest={publishedOpportunities.some((opportunity) =>
+              appliedIds.includes(opportunity.id),
+            )}
+            opportunityTitle={
+              publishedOpportunities.find((opportunity) =>
+                appliedIds.includes(opportunity.id),
+              )?.title ?? null
+            }
+          />
         )}
       </section>
     </main>
@@ -1856,7 +2099,9 @@ export default function Home() {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
-  const [publishedOpportunities, setPublishedOpportunities] = useState<Opportunity[]>([]);
+  const [publishedOpportunities, setPublishedOpportunities] = useState<
+    Opportunity[]
+  >([]);
   const [resetKey, setResetKey] = useState(0);
   const [selectedOpportunity, setSelectedOpportunity] =
     useState<Opportunity | null>(null);
@@ -1891,15 +2136,35 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(
-      "myin-demo-state",
-      JSON.stringify({ savedIds, appliedIds, dismissedIds, publishedOpportunities }),
-    );
-  }, [appliedIds, dismissedIds, hydrated, publishedOpportunities, savedIds]);
+    if (!hydrated) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        "myin-demo-state",
+        JSON.stringify({
+          savedIds,
+          appliedIds,
+          dismissedIds,
+          publishedOpportunities,
+        }),
+      );
+    } catch {
+      // The demo still works if local storage is unavailable or full.
+    }
+  }, [
+    appliedIds,
+    dismissedIds,
+    hydrated,
+    publishedOpportunities,
+    savedIds,
+  ]);
 
   useEffect(() => {
-    if (!notice) return;
+    if (!notice) {
+      return;
+    }
     const timeout = window.setTimeout(() => setNotice(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [notice]);
@@ -1910,27 +2175,44 @@ export default function Home() {
   };
 
   const toggleSave = (id: number) => {
-    setSavedIds((current) => {
-      const isSaved = current.includes(id);
-      setNotice(isSaved ? "Removed from saved opportunities." : "Opportunity saved.");
-      return isSaved ? current.filter((item) => item !== id) : [...current, id];
-    });
+    const isSaved = savedIds.includes(id);
+    setSavedIds(
+      isSaved ? savedIds.filter((item) => item !== id) : [...savedIds, id],
+    );
+    setNotice(
+      isSaved ? "Removed from saved opportunities." : "Opportunity saved.",
+    );
   };
 
   const apply = (id: number) => {
-    if (appliedIds.includes(id)) return;
-    setAppliedIds((current) => [...current, id]);
+    if (appliedIds.includes(id)) {
+      return;
+    }
+    setAppliedIds((current) =>
+      current.includes(id) ? current : [...current, id],
+    );
     setNotice("Interest sent safely. Your contact details are still private.");
   };
 
   const dismiss = (id: number) => {
-    setDismissedIds((current) => [...current, id]);
+    setDismissedIds((current) =>
+      current.includes(id) ? current : [...current, id],
+    );
     setNotice("Got it. We’ll use that feedback to improve your matches.");
   };
 
   const resetDemo = () => {
-    setSavedIds([]); setAppliedIds([]); setDismissedIds([]); setPublishedOpportunities([]); setSelectedOpportunity(null); setResetKey((value) => value + 1);
-    try { window.localStorage.removeItem("myin-demo-state"); } catch { /* local storage is optional */ }
+    setSavedIds([]);
+    setAppliedIds([]);
+    setDismissedIds([]);
+    setPublishedOpportunities([]);
+    setSelectedOpportunity(null);
+    setResetKey((value) => value + 1);
+    try {
+      window.localStorage.removeItem("myin-demo-state");
+    } catch {
+      // Local storage is optional.
+    }
     setNotice("Demo reset. Seeded opportunities are restored.");
   };
 
@@ -1957,7 +2239,19 @@ export default function Home() {
               onProfile={() => setShowProfile(true)}
             />
           )}
-          {view === "organization" && <OrganizationView onPublishOpportunity={(opportunity) => setPublishedOpportunities((current) => [opportunity, ...current.filter((item) => item.id !== opportunity.id)])} publishedOpportunities={publishedOpportunities} appliedIds={appliedIds} resetKey={resetKey} />}
+          {view === "organization" && (
+            <OrganizationView
+              key={resetKey}
+              onPublishOpportunity={(opportunity) =>
+                setPublishedOpportunities((current) => [
+                  opportunity,
+                  ...current.filter((item) => item.id !== opportunity.id),
+                ])
+              }
+              publishedOpportunities={publishedOpportunities}
+              appliedIds={appliedIds}
+            />
+          )}
           {view === "impact" && <ImpactView />}
         </div>
       )}
@@ -1978,7 +2272,11 @@ export default function Home() {
           {notice}
         </div>
       )}
-      {view !== "home" && <button className="reset-demo" onClick={resetDemo}>Reset demo</button>}
+      {view !== "home" && (
+        <button className="reset-demo" onClick={resetDemo}>
+          Reset demo
+        </button>
+      )}
     </>
   );
 }

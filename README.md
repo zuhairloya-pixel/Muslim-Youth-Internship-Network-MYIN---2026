@@ -4,7 +4,8 @@ A polished, interactive hackathon MVP for an opportunity network that connects
 Muslim students with internships, volunteer roles, mentorships, and meaningful
 community projects.
 
-The demo is designed to run locally without an API key or external services.
+The core demo runs locally without external services. The opportunity extraction
+flow uses Gemini when a private API key is configured.
 
 ## What is included
 
@@ -46,8 +47,18 @@ Open the unzipped folder in VS Code, open **Terminal → New Terminal**, and run
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
+
+Add your private Google AI Studio key to `.env.local` before using the
+opportunity extraction flow:
+
+```text
+GEMINI_API_KEY=your-private-key
+```
+
+Never commit `.env.local` or expose the key in browser code.
 
 Then open:
 
@@ -75,15 +86,17 @@ This version is intentionally self-contained:
 
 - Opportunity data is seeded in `app/page.tsx`.
 - Save, dismiss, and interest actions are stored in the browser.
-- The opportunity extraction flow uses deterministic demo data, so it works
-  without sending organization content to an external AI provider.
+- The opportunity extraction flow sends the organization-provided description
+  to Gemini from a server-only route and returns structured fields for review.
+- The Gemini key remains server-side and missing information is left blank
+  instead of being invented.
 - No real student data, authentication, email, messaging, or application is
   transmitted.
 
-For production, the extraction action should call a server-side structured-output
-endpoint, opportunity and profile data should move to a database, and all
-student-organization introductions should pass through authenticated consent and
-moderation workflows.
+For production, opportunity and profile data should move to a database, the
+extraction endpoint should receive application authentication and durable rate
+limiting, and all student-organization introductions should pass through
+authenticated consent and moderation workflows.
 
 ## Match scoring
 
