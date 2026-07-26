@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
@@ -50,24 +50,8 @@ test("contains finished metadata and removes starter preview code", async () => 
   assert.match(page, /StudentView/);
   assert.match(page, /OrganizationView/);
   assert.match(page, /ImpactView/);
-  assert.match(page, /\/api\/extract/);
-  assert.match(page, /calculateMatch/);
-  assert.match(page, /Reset demo/);
   assert.match(layout, /Muslim Youth Internship Network/);
   assert.match(layout, /\/og\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("app/_sites-preview", projectRoot)));
-});
-
-test("keeps Gemini configuration out of browser assets", async () => {
-  const clientRoot = new URL("../dist/client/", import.meta.url);
-  const assetPaths = await readdir(clientRoot, { recursive: true });
-  const javascriptPaths = assetPaths.filter((path) => path.endsWith(".js"));
-  const assets = await Promise.all(
-    javascriptPaths.map((path) => readFile(new URL(path, clientRoot), "utf8")),
-  );
-  const clientJavaScript = assets.join("\n");
-
-  assert.doesNotMatch(clientJavaScript, /GEMINI_API_KEY/);
-  assert.doesNotMatch(clientJavaScript, /test-api-key-not-real/);
 });

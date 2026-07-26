@@ -1,13 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { calculateMatch, type MatchBreakdownItem } from "../lib/matching";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 
-type View = "home" | "student" | "organization" | "impact";
+type View = "home" | "auth" | "student" | "organization" | "impact";
 type OrgTab = "overview" | "submit" | "matches";
 type Filter = "All" | "Internships" | "Volunteer" | "Mentorship";
+type AccountRole = "student" | "organization";
 
-type ScoreItem = MatchBreakdownItem;
+type DemoAccount = {
+  name: string;
+  username: string;
+  role: AccountRole;
+  initials: string;
+  organization?: string;
+};
+
+type StoredDemoAccount = DemoAccount & { password: string };
+
+const demoAccounts: Record<string, DemoAccount> = {
+  amina_test: { name: "Amina Hassan", username: "amina_test", role: "student", initials: "AH" },
+  rayanemployer_test: { name: "Rayan Mahmood", username: "rayanemployer_test", role: "organization", initials: "RM", organization: "Rahma Community Lab" },
+};
+
+type ScoreItem = {
+  label: string;
+  earned: number;
+  possible: number;
+};
 
 type Opportunity = {
   id: number;
@@ -26,78 +45,115 @@ type Opportunity = {
   breakdown: ScoreItem[];
   accent: string;
   new?: boolean;
+  urgent?: boolean;
+  startWindow?: string;
+  faithSupport?: string[];
 };
 
 type Extraction = {
   title: string;
-  type: "Volunteer" | "Internship" | "Mentorship" | "";
+  type: string;
   date: string;
   commitment: string;
   location: string;
-  format: "In person" | "Remote" | "Hybrid" | "";
+  format: string;
   ageRange: string;
   supervision: string;
   skills: string;
   impact: string;
-  description: string;
-  interests: string;
-  deadline: string;
+  prayerSpace: string;
+  prayerBreaks: string;
+  halalFood: string;
+  urgentNeed: string;
 };
 
-const aminaProfile = {
-  age: 16,
-  interests: [
-    "Youth education",
-    "Community service",
-    "Media",
-    "Technology",
-    "Design",
-  ],
-  skills: ["Canva", "Social media", "Web design"],
-  careerGoals: ["Technology", "Design", "Media"],
-  availability: ["Saturday", "Weekend"],
-  location: "Dearborn",
-  formats: ["Hybrid", "Remote", "In person"],
-  opportunityTypes: ["Volunteer", "Internship", "Mentorship"],
+type OrganizationResearch = {
+  name: string;
+  summary: string;
+  mission: string;
+  sectors: string[];
+  audiences: string[];
+  cultureSignals: string[];
+  location: string;
+  sourceNote: string;
+  website?: string;
 };
 
-const extractionFields = [
-  "title",
-  "type",
-  "date",
-  "commitment",
-  "location",
-  "format",
-  "ageRange",
-  "supervision",
-  "skills",
-  "impact",
-] as const;
-
-type ExtractionField = (typeof extractionFields)[number];
-
-type ExtractionResult = {
-  extraction: Omit<Extraction, "description" | "interests" | "deadline">;
-  completeness: number;
-  needsConfirmation: ExtractionField[];
+type StudentProfile = {
+  grade: string;
+  location: string;
+  preferredFormat: string;
+  availability: string;
+  careerGoal: string;
+  narrative: string;
+  interests: string[];
+  skills: string[];
+  causes: string[];
+  opportunityTypes: string[];
+  languages: string[];
+  transportation: string;
+  workStyle: string;
+  experienceLevel: string;
+  weeklyWindows: string;
+  prayerPreference: string;
+  jumuahPreference: string;
+  accommodationNotes: string;
+  emergencyAvailability: boolean;
+  experienceNarrative: string;
+  growthFocus: string;
+  homeZip: string;
 };
 
-function summarizeExtraction(extraction: Extraction) {
-  const needsConfirmation = extractionFields.filter(
-    (field) => !extraction[field].trim(),
-  );
-
-  return {
-    completeness: Math.round(
-      ((extractionFields.length - needsConfirmation.length) /
-        extractionFields.length) *
-        100,
-    ),
-    needsConfirmation,
-  };
-}
+const initialStudentProfile: StudentProfile = {
+  grade: "Grade 11",
+  location: "Dearborn, MI",
+  preferredFormat: "Local or virtual",
+  availability: "Saturdays, 10 AM-4 PM",
+  careerGoal: "Explore design and technology for social impact",
+  narrative:
+    "I help our MSA make event flyers and social posts. I enjoy building things, working with younger students, and want to explore technology that helps communities.",
+  interests: ["Technology", "Design", "Youth education"],
+  skills: ["Canva", "Social media", "Basic web design"],
+  causes: ["Education access", "Community service"],
+  opportunityTypes: ["Internships", "Volunteer projects"],
+  languages: ["English", "Arabic"],
+  transportation: "Local rides available",
+  workStyle: "Creative team",
+  experienceLevel: "Growing portfolio",
+  weeklyWindows: "Mon–Thu after 4 PM · Saturday 10 AM–4 PM",
+  prayerPreference: "I need a short, flexible break for Zuhr/Asr when shifts overlap.",
+  jumuahPreference: "Keep Friday midday open when possible",
+  accommodationNotes: "A quiet, clean place to pray is appreciated. I can bring my own prayer mat.",
+  emergencyAvailability: true,
+  experienceNarrative: "MSA Media Lead | 2025–present | Designed event flyers and social campaigns for 120+ students\nWeekend Tutor | 2024–2025 | Supported middle-school reading and homework sessions\nCommunity Food Drive | Spring 2025 | Organized volunteer check-in and resource tables",
+  growthFocus: "Public speaking, HTML/CSS, and leading a project from idea to launch",
+  homeZip: "48126",
+};
 
 const opportunities: Opportunity[] = [
+  {
+    id: 0,
+    title: "Clinic Welcome Desk — Today",
+    organization: "Mercy Health Access Clinic",
+    organizationMark: "MH",
+    type: "Volunteer",
+    format: "In person",
+    location: "Dearborn, MI",
+    deadline: "Today · 2:30 PM",
+    commitment: "Today, 3–6 PM",
+    description: "A community clinic needs a calm, bilingual youth volunteer today to welcome families, organize resource packets, and support a busy walk-in evening.",
+    skills: ["Communication", "Arabic", "Community service"],
+    matchReasons: ["Your Arabic and community service signals", "Immediate availability near Dearborn", "Prayer break and quiet space confirmed"],
+    score: 95,
+    breakdown: [
+      { label: "Interests", earned: 25, possible: 25 }, { label: "Skills", earned: 14, possible: 20 }, { label: "Career goals", earned: 8, possible: 15 }, { label: "Availability", earned: 15, possible: 15 }, { label: "Eligibility", earned: 10, possible: 10 }, { label: "Location & format", earned: 10, possible: 10 }, { label: "Opportunity type", earned: 5, possible: 5 },
+    ],
+    accent: "urgent",
+    new: true,
+    urgent: true,
+    startWindow: "Starts in 2h 15m",
+    faithSupport: ["Prayer-friendly break", "Quiet room available", "Halal snacks nearby"],
+  },
   {
     id: 1,
     title: "Youth Digital Media Assistant",
@@ -128,6 +184,7 @@ const opportunities: Opportunity[] = [
     ],
     accent: "gold",
     new: true,
+    faithSupport: ["Prayer break welcomed", "Muslim-led nonprofit"],
   },
   {
     id: 2,
@@ -159,6 +216,7 @@ const opportunities: Opportunity[] = [
     ],
     accent: "blue",
     new: true,
+    faithSupport: ["Flexible breaks", "Remote-friendly"],
   },
   {
     id: 3,
@@ -252,17 +310,289 @@ const candidates = [
   },
 ];
 
+function normalizeSignal(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function signalMatches(signal: string, corpus: string) {
+  const normalized = normalizeSignal(signal);
+  if (corpus.includes(normalized)) return true;
+  const meaningfulWords = normalized.split(" ").filter((word) => word.length >= 4);
+  return meaningfulWords.some((word) => corpus.includes(word));
+}
+
+function calculateOpportunityMatch(
+  profile: StudentProfile,
+  opportunity: Opportunity,
+): Opportunity {
+  const corpus = normalizeSignal(
+    [
+      opportunity.title,
+      opportunity.description,
+      opportunity.skills.join(" "),
+      opportunity.type,
+      opportunity.format,
+      opportunity.location,
+      opportunity.commitment,
+    ].join(" "),
+  );
+
+  const interestHits = [...profile.interests, ...profile.causes].filter((signal) =>
+    signalMatches(signal, corpus),
+  ).length;
+  const interests = interestHits >= 2 ? 25 : interestHits === 1 ? 15 : 5;
+
+  const skillHits = opportunity.skills.filter((requested) =>
+    profile.skills.some(
+      (skill) => signalMatches(skill, normalizeSignal(requested)) || signalMatches(requested, normalizeSignal(skill)),
+    ),
+  ).length;
+  const skills = opportunity.skills.length
+    ? Math.round((skillHits / opportunity.skills.length) * 20)
+    : 20;
+
+  const careerWords = normalizeSignal(profile.careerGoal)
+    .split(" ")
+    .filter((word) => word.length >= 5 && !["explore", "social", "impact"].includes(word));
+  const careerHits = careerWords.filter((word) => corpus.includes(word)).length;
+  const career = careerHits >= 2 ? 15 : careerHits === 1 ? 8 : 3;
+
+  const availabilityText = normalizeSignal(profile.availability);
+  const scheduleText = normalizeSignal(opportunity.commitment);
+  const availability =
+    (availabilityText.includes("saturday") && scheduleText.includes("saturday")) ||
+    scheduleText.includes("hrs week")
+      ? 15
+      : 10;
+
+  const formatPreference = normalizeSignal(profile.preferredFormat);
+  const format = normalizeSignal(opportunity.format);
+  const location = normalizeSignal(opportunity.location);
+  const profileLocation = normalizeSignal(profile.location);
+  const locationAndFormat =
+    (format.includes("remote") && formatPreference.includes("virtual")) ||
+    format.includes("hybrid") ||
+    location.includes("anywhere") ||
+    location.split(" ").some((part) => part.length > 4 && profileLocation.includes(part))
+      ? 10
+      : formatPreference.includes("local")
+        ? 7
+        : 3;
+
+  const preferredTypes = profile.opportunityTypes.map(normalizeSignal);
+  const opportunityType = normalizeSignal(opportunity.type);
+  const typePreference = preferredTypes.some((type) => type.includes(opportunityType))
+    ? 5
+    : preferredTypes.length
+      ? 3
+      : 0;
+
+  const breakdown: ScoreItem[] = [
+    { label: "Interests", earned: interests, possible: 25 },
+    { label: "Skills", earned: skills, possible: 20 },
+    { label: "Career goals", earned: career, possible: 15 },
+    { label: "Availability", earned: availability, possible: 15 },
+    { label: "Eligibility", earned: 10, possible: 10 },
+    { label: "Location & format", earned: locationAndFormat, possible: 10 },
+    { label: "Opportunity type", earned: typePreference, possible: 5 },
+  ];
+
+  const reasons = [
+    ...(skillHits > 0 ? [`${skillHits} requested skill${skillHits === 1 ? "" : "s"} already in your profile`] : []),
+    ...(interestHits > 0 ? ["Connects with your interests and causes"] : []),
+    ...(availability === 15 ? ["Fits your stated availability"] : []),
+    ...(locationAndFormat === 10 ? ["Matches your location or format preference"] : []),
+    ...(career >= 8 ? ["Builds toward your stated career direction"] : []),
+    ...(opportunity.urgent && profile.emergencyAvailability ? ["You opted into immediate community opportunities"] : []),
+    ...(opportunity.faithSupport?.length && profile.prayerPreference ? ["Prayer and faith-aware accommodations are listed"] : []),
+  ];
+
+  return {
+    ...opportunity,
+    score: breakdown.reduce((total, item) => total + item.earned, 0),
+    breakdown,
+    matchReasons: reasons.length ? reasons : ["Eligible based on your core profile", "A chance to build new skills"],
+  };
+}
+
 function Brand({ onClick }: { onClick: () => void }) {
   return (
     <button className="brand" onClick={onClick} aria-label="Go to MYIN home">
-      <span className="brand-mark" aria-hidden="true">
-        M
-      </span>
+      <img className="brand-logo" src="/myin-logo.png" alt="" />
       <span>
         <strong>MYIN</strong>
         <small>Muslim Youth Internship Network</small>
       </span>
     </button>
+  );
+}
+
+function AuthView({
+  onBack,
+  onLogin,
+  customAccounts,
+  onCreateAccount,
+}: {
+  onBack: () => void;
+  onLogin: (account: DemoAccount) => void;
+  customAccounts: StoredDemoAccount[];
+  onCreateAccount: (account: StoredDemoAccount) => string | null;
+}) {
+  const [mode, setMode] = useState<"signin" | "create">("signin");
+  const [username, setUsername] = useState("amina_test");
+  const [password, setPassword] = useState("whatever");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<AccountRole>("student");
+  const [error, setError] = useState("");
+
+  const chooseAccount = (account: DemoAccount) => {
+    setUsername(account.username);
+    setPassword("whatever");
+    setError("");
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedUsername = username.trim().toLowerCase();
+    const demoAccount = demoAccounts[normalizedUsername];
+    const customAccount = customAccounts.find((account) => account.username === normalizedUsername);
+    const account = demoAccount ?? customAccount;
+    const validPassword = demoAccount ? password === "whatever" : customAccount?.password === password;
+    if (!account || !validPassword) {
+      setError("Use one of the demo accounts below with the password “whatever”.");
+      return;
+    }
+    onLogin(account);
+  };
+
+  const createAccount = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedUsername = username.trim().toLowerCase();
+    if (!name.trim() || !normalizedUsername || password.length < 4) {
+      setError("Add your name, a username, and a password with at least 4 characters.");
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(normalizedUsername)) {
+      setError("Use letters, numbers, and underscores only for the username.");
+      return;
+    }
+    const initials = name.trim().split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+    const nextAccount: StoredDemoAccount = {
+      name: name.trim(), username: normalizedUsername, password, role,
+      initials: initials || "MY",
+      organization: role === "organization" ? `${name.trim()} Organization` : undefined,
+    };
+    const issue = onCreateAccount(nextAccount);
+    if (issue) { setError(issue); return; }
+    onLogin(nextAccount);
+  };
+
+  return (
+    <main className="auth-page">
+      <div className="auth-atmosphere" aria-hidden="true">
+        <span className="auth-crescent">☾</span>
+        <span className="auth-orbit auth-orbit-one" />
+        <span className="auth-orbit auth-orbit-two" />
+        <span className="auth-mosque" />
+      </div>
+      <section className="auth-card" aria-labelledby="sign-in-title" data-account-flow="self-serve">
+        <div className="auth-brand"><Brand onClick={onBack} /></div>
+        <span className="auth-kicker"><i /> SECURE DEMO ACCESS</span>
+        <h1 id="sign-in-title">{mode === "signin" ? "Your next step starts here." : "Build your MYIN home."}</h1>
+        <p>{mode === "signin" ? "Sign in to experience MYIN as a student or a community organization." : "Create a student or organization workspace in seconds."}</p>
+        <div className="auth-mode-toggle" role="tablist" aria-label="Account access mode">
+          <button className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setError(""); }} type="button">Sign in</button>
+          <button className={mode === "create" ? "active" : ""} onClick={() => { setMode("create"); setError(""); setUsername(""); setPassword(""); }} type="button">Create account</button>
+        </div>
+        {mode === "signin" && <>
+        <div className="demo-account-picker" aria-label="Choose a demo account">
+          {Object.values(demoAccounts).map((account) => (
+            <button
+              className={username === account.username ? "selected" : ""}
+              key={account.username}
+              onClick={() => chooseAccount(account)}
+              type="button"
+            >
+              <span className="demo-account-avatar">{account.initials}</span>
+              <span><strong>{account.role === "student" ? "Student workspace" : "Organization workspace"}</strong><small>{account.name}</small></span>
+            </button>
+          ))}
+        </div>
+        <form className="auth-form" onSubmit={submit}>
+          <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label>
+          <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <button className="button button-gold full-width" type="submit">Enter MYIN <span aria-hidden="true">→</span></button>
+        </form>
+        <div className="auth-demo-note"><strong>Hackathon demo access</strong><span>Both accounts use password: <code>whatever</code></span></div>
+        </>}
+        {mode === "create" && <form className="auth-form" onSubmit={createAccount}>
+          <div className="role-selector" aria-label="Choose account type">
+            <button className={role === "student" ? "selected" : ""} onClick={() => setRole("student")} type="button"><strong>I&apos;m a student</strong><small>Discover opportunities and grow.</small></button>
+            <button className={role === "organization" ? "selected" : ""} onClick={() => setRole("organization")} type="button"><strong>I represent an organization</strong><small>Find mission-aligned youth.</small></button>
+          </div>
+          <label>{role === "student" ? "Your full name" : "Your name"}<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder={role === "student" ? "e.g. Mariam Ali" : "e.g. Rayan Mahmood"} /></label>
+          <label>Choose a username<input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} autoComplete="username" placeholder="e.g. mariam_ali" /></label>
+          <label>Create a password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" placeholder="At least 4 characters" /></label>
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <button className="button button-gold full-width" type="submit">Create {role === "student" ? "student" : "organization"} account <span aria-hidden="true">→</span></button>
+          <p className="auth-local-note">For this hackathon demo, your new account is remembered in this browser.</p>
+        </form>}
+        <button className="auth-back" onClick={onBack}>← Back to MYIN</button>
+      </section>
+    </main>
+  );
+}
+
+const heroMoments = [
+  "Discover your lane.",
+  "Build real confidence.",
+  "Serve with purpose.",
+  "Lead what comes next.",
+];
+
+function HeroMomentum() {
+  const [moment, setMoment] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setMoment((current) => (current + 1) % heroMoments.length);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="hero-momentum" aria-live="polite">
+      <span className="hero-momentum-label">MYIN helps you</span>
+      <strong key={heroMoments[moment]}>{heroMoments[moment]}</strong>
+      <div className="hero-momentum-dots" aria-hidden="true">
+        {heroMoments.map((item, index) => <i key={item} className={index === moment ? "active" : ""} />)}
+      </div>
+    </div>
+  );
+}
+
+const warpStarPaths = [
+  [-46, -42], [38, -58], [58, 48], [-48, 52],
+];
+
+function WarpStarfield() {
+  return (
+    <div className="warp-starfield" aria-hidden="true">
+      {warpStarPaths.map(([x, y], index) => (
+        <i
+          className="warp-star"
+          key={`${x}-${y}`}
+          style={{
+            "--warp-x": `${x}vw`,
+            "--warp-y": `${y}vh`,
+            "--warp-angle": `${Math.atan2(y, x) * (180 / Math.PI)}deg`,
+            "--warp-delay": `${-(index * 3.4)}s`,
+            "--warp-duration": `${15 + (index % 4) * 1.7}s`,
+          } as CSSProperties}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -318,12 +648,27 @@ function HomeView({
     <div className="home-view">
       <PublicHeader
         onNavigate={onNavigate}
-        onStudent={() => onNavigate("student")}
-        onOrganization={() => onNavigate("organization")}
+        onStudent={() => onNavigate("auth")}
+        onOrganization={() => onNavigate("auth")}
       />
 
       <main>
         <section className="hero">
+          <div className="hero-noor" aria-hidden="true">
+            <div className="hero-crescent">☾</div>
+            <i className="star star-a">✦</i>
+            <i className="star star-b">✧</i>
+            <i className="star star-c">✦</i>
+            <i className="star star-d">✧</i>
+            <WarpStarfield />
+            <div className="hero-mosque">
+              <i className="mosque-minaret mosque-minaret-left" />
+              <i className="mosque-minaret mosque-minaret-right" />
+            </div>
+            <div className="hero-arch arch-one" />
+            <div className="hero-arch arch-two" />
+            <div className="hero-lattice" />
+          </div>
           <div className="page-width hero-grid">
             <div className="hero-copy">
               <div className="eyebrow">
@@ -335,20 +680,26 @@ function HomeView({
                 <br />
                 your community <em>forward.</em>
               </h1>
+              <HeroMomentum />
               <p className="hero-subtitle">
                 MYIN finds opportunities built for who you are—and shows exactly
                 why each one belongs on your radar.
               </p>
+              <div className="hero-intelligence-line" aria-label="MYIN product strengths">
+                <span><b>01</b> Identity-aware profile</span>
+                <span><b>02</b> Explainable matching</span>
+                <span><b>03</b> Trusted introductions</span>
+              </div>
               <div className="hero-actions">
                 <button
                   className="button button-gold"
-                  onClick={() => onNavigate("student")}
+                  onClick={() => onNavigate("auth")}
                 >
                   See Amina&apos;s matches <span aria-hidden="true">→</span>
                 </button>
                 <button
                   className="button button-ghost-light"
-                  onClick={() => onNavigate("organization")}
+                  onClick={() => onNavigate("auth")}
                 >
                   I represent an organization
                 </button>
@@ -365,9 +716,14 @@ function HomeView({
                   trusted by community partners.
                 </p>
               </div>
+              <p className="hero-whisper">Every gift has a place to become service.</p>
             </div>
 
             <div className="hero-product" aria-label="Example MYIN match">
+              <div className="hero-system-status">
+                <span><i /> MYIN opportunity radar</span>
+                <strong>LIVE DEMO</strong>
+              </div>
               <div className="product-orbit orbit-one" />
               <div className="product-orbit orbit-two" />
               <div className="floating-note note-top">
@@ -408,7 +764,7 @@ function HomeView({
                 </div>
                 <button
                   className="button button-dark full-width"
-                  onClick={() => onNavigate("student")}
+                  onClick={() => onNavigate("auth")}
                 >
                   View my match
                 </button>
@@ -441,6 +797,36 @@ function HomeView({
               <span>of matches explained</span>
             </div>
             <p>Demo cohort · Southeast Michigan</p>
+          </div>
+        </section>
+
+        <section className="intelligence-section">
+          <div className="page-width intelligence-grid">
+            <div className="intelligence-copy">
+              <span className="kicker">BUILT AROUND THE WHOLE PERSON</span>
+              <h2>A profile that sees potential before a resume does.</h2>
+              <p>
+                Skills are only one signal. MYIN understands goals, causes,
+                availability, learning edges, preferred environments, and the
+                contribution a student wants to make.
+              </p>
+              <button className="button button-dark" onClick={() => onNavigate("auth")}>
+                Open student mission control
+              </button>
+            </div>
+            <div className="signal-cloud" aria-label="Example student profile signals">
+              <div className="signal-core">
+                <span>88%</span>
+                <strong>Profile signal</strong>
+                <small>12 dimensions understood</small>
+              </div>
+              <span className="signal-chip signal-one">Creative builder</span>
+              <span className="signal-chip signal-two">Saturday availability</span>
+              <span className="signal-chip signal-three">Youth education</span>
+              <span className="signal-chip signal-four">Learning web design</span>
+              <span className="signal-chip signal-five">Community impact</span>
+              <div className="signal-grid-lines" />
+            </div>
           </div>
         </section>
 
@@ -510,6 +896,7 @@ function HomeView({
           <div className="page-width trust-grid">
             <div>
               <span className="kicker kicker-light">SAFETY BY DESIGN</span>
+              <span className="trust-ornament" aria-hidden="true">✦</span>
               <h2>Young people deserve opportunity—and protection.</h2>
               <p>
                 Organizations see only what they need to evaluate fit. Contact
@@ -553,17 +940,18 @@ function HomeView({
             <div>
               <span className="kicker">START WITH ONE CONNECTION</span>
               <h2>Your skills. Your community. Your impact.</h2>
+              <p>Let purpose find its next place to grow.</p>
             </div>
             <div>
               <button
                 className="button button-dark"
-                onClick={() => onNavigate("student")}
+                  onClick={() => onNavigate("auth")}
               >
                 Explore as a student
               </button>
               <button
                 className="button button-outline"
-                onClick={() => onNavigate("organization")}
+                  onClick={() => onNavigate("auth")}
               >
                 Post an opportunity
               </button>
@@ -586,9 +974,13 @@ function HomeView({
 function AppHeader({
   view,
   onNavigate,
+  account,
+  onSignOut,
 }: {
   view: View;
   onNavigate: (view: View) => void;
+  account: DemoAccount;
+  onSignOut: () => void;
 }) {
   return (
     <header className="app-header">
@@ -598,13 +990,13 @@ function AppHeader({
           className={view === "student" ? "active" : ""}
           onClick={() => onNavigate("student")}
         >
-          Student demo
+          Student workspace
         </button>
         <button
           className={view === "organization" ? "active" : ""}
           onClick={() => onNavigate("organization")}
         >
-          Organization demo
+          Organization workspace
         </button>
         <button
           className={view === "impact" ? "active" : ""}
@@ -613,9 +1005,11 @@ function AppHeader({
           Impact
         </button>
       </nav>
-      <button className="demo-avatar" aria-label="Amina profile">
-        AH
-      </button>
+      <div className="app-account">
+        <span className="demo-avatar" aria-hidden="true">{account.initials}</span>
+        <div><strong>{account.name}</strong><small>{account.role === "student" ? "Student" : account.organization}</small></div>
+        <button onClick={onSignOut}>Sign out</button>
+      </div>
     </header>
   );
 }
@@ -660,7 +1054,7 @@ function OpportunityCard({
       </div>
       <div className="opportunity-title-row">
         <div>
-          {opportunity.new && <span className="new-label">NEW TODAY</span>}
+          {opportunity.urgent ? <span className="urgent-label">IMMEDIATE NEED · {opportunity.startWindow}</span> : opportunity.new && <span className="new-label">NEW TODAY</span>}
           <h3>{opportunity.title}</h3>
         </div>
         <ScoreRing score={opportunity.score} small />
@@ -671,6 +1065,7 @@ function OpportunityCard({
         <span>{opportunity.format}</span>
         <span>{opportunity.commitment}</span>
       </div>
+      {opportunity.faithSupport && <div className="faith-support-row" aria-label="Faith-aware accommodations">{opportunity.faithSupport.slice(0, 2).map((support) => <span key={support}>☾ {support}</span>)}</div>}
       <div className="why-box">
         <strong>Why it matches you</strong>
         <ul>
@@ -706,8 +1101,67 @@ function OpportunityCard({
   );
 }
 
+function SkillConstellation({ profile, onProfile }: { profile: StudentProfile; onProfile: () => void }) {
+  const signals = [
+    { label: "Creative", value: 88 }, { label: "Community", value: 82 }, { label: "Digital", value: 74 },
+    { label: "Leadership", value: 61 }, { label: "Communication", value: 68 }, { label: "Career clarity", value: 58 },
+  ];
+  return (
+    <article className="skill-constellation">
+      <div className="constellation-head"><div><span>MY GROWTH MAP</span><h3>Skills, proof, and next edges.</h3></div><button onClick={onProfile}>Update signals</button></div>
+      <div className="constellation-body">
+        <div className="skill-web" aria-label="Six-dimension skill graph">
+          <div className="skill-web-ring ring-one" /><div className="skill-web-ring ring-two" /><div className="skill-web-ring ring-three" />
+          {signals.map((signal, index) => <div className={`skill-node node-${index + 1}`} key={signal.label}><b style={{ "--signal": `${signal.value}%` } as CSSProperties} /><span>{signal.label}</span><small>{signal.value}</small></div>)}
+          <div className="skill-web-core"><strong>{profile.skills.length + 4}</strong><small>signals</small></div>
+        </div>
+        <div className="constellation-insights"><div><small>ALREADY PROVEN</small><strong>{profile.skills.slice(0, 2).join(" + ")}</strong><p>{(profile.experienceNarrative || "").split("\n").filter(Boolean).length} experiences ready to turn into evidence.</p></div><div><small>NEXT TO BUILD</small><strong>{profile.growthFocus || "Choose a growth focus"}</strong><p>These are used to surface stretch opportunities, not lower your score.</p></div></div>
+      </div>
+    </article>
+  );
+}
+
+type RadarPlace = { name: string; type: string; lat: number; lon: number };
+
+function OpportunityRadar({ profile }: { profile: StudentProfile }) {
+  const [zip, setZip] = useState(profile.homeZip || "");
+  const [field, setField] = useState(profile.interests[0] || "Technology");
+  const [places, setPlaces] = useState<RadarPlace[]>([]);
+  const [status, setStatus] = useState("Use your ZIP code to discover nearby places to explore.");
+  const [loading, setLoading] = useState(false);
+
+  const searchRadar = async () => {
+    if (!/^\d{5}$/.test(zip)) { setStatus("Enter a five-digit U.S. ZIP code."); return; }
+    setLoading(true); setStatus("Scanning nearby community opportunities…");
+    try {
+      const response = await fetch(`/api/opportunity-radar?zip=${encodeURIComponent(zip)}&field=${encodeURIComponent(field)}`);
+      const result = await response.json() as { results?: RadarPlace[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Radar unavailable");
+      setPlaces(result.results || []);
+      setStatus(result.results?.length ? `${result.results.length} nearby places found — review them before treating them as confirmed openings.` : "No places found in this area. Try a broader career field.");
+    } catch (error) { setStatus(error instanceof Error ? error.message : "The radar could not connect right now."); }
+    finally { setLoading(false); }
+  };
+
+  const useLocation = () => {
+    if (!navigator.geolocation) { setStatus("Location sharing is not available in this browser. Use your ZIP code instead."); return; }
+    setStatus("Location permission is requested by your browser; MYIN does not save your precise location.");
+    navigator.geolocation.getCurrentPosition(() => setStatus("Location confirmed for this session. Add your ZIP to search partner places."), () => setStatus("Location was not shared. Your ZIP code still works."), { enableHighAccuracy: false, timeout: 7000 });
+  };
+
+  return <section className="opportunity-radar-map">
+    <div className="radar-map-copy"><span><i /> OPPORTUNITY RADAR</span><h2>See nearby places where your next opportunity could begin.</h2><p>Inspired by real map discovery, then filtered through MYIN&apos;s safety and fit process.</p><div className="radar-controls"><input value={zip} onChange={(event) => setZip(event.target.value)} maxLength={5} inputMode="numeric" aria-label="ZIP code" placeholder="ZIP code" /><input value={field} onChange={(event) => setField(event.target.value)} aria-label="Career field" placeholder="Career field" /><button className="button button-gold compact" onClick={searchRadar} disabled={loading}>{loading ? "Searching…" : "Scan map"}</button></div><button className="map-location-button" onClick={useLocation}>◎ Use my live location privately</button><small>{status}</small></div>
+    <div className="radar-map-visual" aria-label="Map-style opportunity radar">
+      <div className="map-grid" /><div className="map-route route-one" /><div className="map-route route-two" /><div className="map-user-pin"><i />You</div>
+      {(places.length ? places.slice(0, 5) : [{ name: "Mercy Clinic", type: "clinic" }, { name: "Bright Path Learning", type: "education" }, { name: "Ummah Tech", type: "office" }]).map((place, index) => <button className={`map-opportunity-pin pin-${index + 1}`} key={`${place.name}-${index}`} title={place.name}><b>{index + 1}</b><span>{place.name.split(",")[0]}</span></button>)}
+      <div className="map-legend"><span><i /> MYIN partner or lead</span><span><b /> Your search center</span></div>
+    </div>
+  </section>;
+}
+
 function StudentView({
-  opportunities,
+  profile,
+  createdOpportunities,
   savedIds,
   appliedIds,
   dismissedIds,
@@ -718,7 +1172,8 @@ function StudentView({
   onEmail,
   onProfile,
 }: {
-  opportunities: Opportunity[];
+  profile: StudentProfile;
+  createdOpportunities: Opportunity[];
   savedIds: number[];
   appliedIds: number[];
   dismissedIds: number[];
@@ -731,12 +1186,18 @@ function StudentView({
 }) {
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
+  const profileStrength = Math.min(
+    100,
+    56 + profile.skills.length * 4 + profile.interests.length * 3 + profile.causes.length * 3,
+  );
+  const matchedOpportunities = useMemo(
+    () => [...opportunities, ...createdOpportunities].map((opportunity) => calculateOpportunityMatch(profile, opportunity)),
+    [createdOpportunities, profile],
+  );
 
   const filtered = useMemo(() => {
-    return opportunities.filter((opportunity) => {
-      if (dismissedIds.includes(opportunity.id)) {
-        return false;
-      }
+    return matchedOpportunities.filter((opportunity) => {
+      if (dismissedIds.includes(opportunity.id)) return false;
       const filterMatches =
         filter === "All" ||
         (filter === "Internships" && opportunity.type === "Internship") ||
@@ -749,7 +1210,7 @@ function StudentView({
         );
       return filterMatches && searchMatches;
     });
-  }, [dismissedIds, filter, opportunities, search]);
+  }, [dismissedIds, filter, matchedOpportunities, search]);
 
   return (
     <main className="dashboard-page">
@@ -758,14 +1219,14 @@ function StudentView({
           <div className="profile-avatar">AH</div>
           <span className="verified-profile">✓</span>
           <h2>Amina Hassan</h2>
-          <p>Grade 11 · Dearborn, MI</p>
+          <p>{profile.grade} / {profile.location}</p>
           <div className="profile-completion">
             <div>
               <span>Profile strength</span>
-              <strong>88%</strong>
+              <strong>{profileStrength}%</strong>
             </div>
             <div className="progress-track">
-              <span style={{ width: "88%" }} />
+              <span style={{ width: `${profileStrength}%` }} />
             </div>
           </div>
           <button className="button button-outline full-width" onClick={onProfile}>
@@ -776,26 +1237,18 @@ function StudentView({
         <div className="sidebar-section">
           <span className="sidebar-label">MY FOCUS</span>
           <div className="profile-chips">
-            <span>Technology</span>
-            <span>Design</span>
-            <span>Youth education</span>
+            {profile.interests.map((interest) => <span key={interest}>{interest}</span>)}
           </div>
         </div>
         <div className="sidebar-section">
           <span className="sidebar-label">MY SKILLS</span>
           <ul className="simple-list">
-            <li>
-              <span>Canva</span>
-              <small>Experienced</small>
-            </li>
-            <li>
-              <span>Social media</span>
-              <small>Experienced</small>
-            </li>
-            <li>
-              <span>Web design</span>
-              <small>Learning</small>
-            </li>
+            {profile.skills.map((skill, index) => (
+              <li key={skill}>
+                <span>{skill}</span>
+                <small>{index < 2 ? "Confident" : "Developing"}</small>
+              </li>
+            ))}
           </ul>
         </div>
         <div className="privacy-note">
@@ -808,14 +1261,40 @@ function StudentView({
       </aside>
 
       <section className="student-main">
+        <section className="student-command-hero">
+          <div className="command-hero-copy">
+            <div className="command-status"><i /> OPPORTUNITY RADAR ACTIVE</div>
+            <h1>Your next level is already in range.</h1>
+            <p>
+              MYIN understands {profile.skills.length + profile.interests.length + profile.causes.length} signals
+              about you and found <strong>4 high-potential moves</strong> worth making now.
+            </p>
+            <div className="command-actions">
+              <button className="button button-gold" onClick={onProfile}>Strengthen my signal</button>
+              <button className="button button-ghost-light" onClick={() => document.getElementById("match-feed")?.scrollIntoView({ behavior: "smooth" })}>
+                Launch opportunity feed
+              </button>
+            </div>
+          </div>
+          <div className="radar-visual" aria-label={`${profileStrength} percent profile strength`}>
+            <div className="radar-ring radar-ring-one" />
+            <div className="radar-ring radar-ring-two" />
+            <div className="radar-sweep" />
+            <div className="radar-core">
+              <strong>{profileStrength}%</strong>
+              <span>signal strength</span>
+            </div>
+            <i className="radar-point point-one" />
+            <i className="radar-point point-two" />
+            <i className="radar-point point-three" />
+          </div>
+        </section>
+
         <div className="student-welcome">
           <div>
             <span className="kicker">SATURDAY, JULY 25</span>
             <h1>Good morning, Amina.</h1>
-            <p>
-              We found {opportunities.length} opportunities worth your
-              attention.
-            </p>
+            <p>We found 4 opportunities worth your attention.</p>
           </div>
           <button className="email-preview-button" onClick={onEmail}>
             <span aria-hidden="true">✉</span>
@@ -831,7 +1310,7 @@ function StudentView({
           <article>
             <span className="stat-symbol">✦</span>
             <div>
-              <strong>{opportunities.length}</strong>
+              <strong>{matchedOpportunities.length}</strong>
               <small>New matches</small>
             </div>
             <em>+2 today</em>
@@ -859,7 +1338,60 @@ function StudentView({
           </article>
         </div>
 
-        <div className="feed-toolbar">
+        <section className="rapid-response-panel" aria-label="Immediate community opportunities">
+          <div className="rapid-response-copy">
+            <span><i /> COMMUNITY RESPONSE RADAR</span>
+            <h2>Make yourself available when your community needs help now.</h2>
+            <p>MYIN only surfaces urgent, supervised opportunities that fit your location, schedule, and the boundaries you choose.</p>
+          </div>
+          <div className="rapid-response-actions">
+            <strong>{profile.emergencyAvailability ? "On for trusted alerts" : "Urgent alerts paused"}</strong>
+            <small>{profile.emergencyAvailability ? profile.weeklyWindows : "Turn this on from your profile whenever you want."}</small>
+            <button className="button button-gold compact" onClick={onProfile}>Customize availability</button>
+          </div>
+        </section>
+
+        <div className="student-growth-grid">
+          <SkillConstellation profile={profile} onProfile={onProfile} />
+          <article className="proof-resume-card">
+            <span>MYIN PROOF PORTFOLIO</span><h3>Your work deserves receipts.</h3>
+            <p>Turn experiences inside MYIN into a college- and mentor-ready record. Verified activities are clearly marked; self-entered reflections stay separate.</p>
+            <div className="proof-list"><div><b>✓</b><span><strong>{(profile.experienceNarrative || "").split("\n").filter(Boolean).length} experiences logged</strong><small>Impact, role, and dates</small></span></div><div><b>◌</b><span><strong>2 verification requests ready</strong><small>Ask a supervisor or coordinator</small></span></div></div>
+            <button className="button button-dark compact" onClick={() => window.print()}>Open printable MYIN resume</button>
+          </article>
+        </div>
+
+        <OpportunityRadar profile={profile} />
+
+        <section className="student-intelligence-grid">
+          <article className="identity-card">
+            <div className="intel-card-head">
+              <span>IDENTITY SIGNAL</span>
+              <button onClick={onProfile}>Tune profile</button>
+            </div>
+            <h3>{profile.workStyle}</h3>
+            <p>{profile.careerGoal}</p>
+            <div className="signal-meter-list">
+              <div><span>Skills mapped</span><strong>{profile.skills.length}/8</strong><i><b style={{ width: `${Math.min(100, profile.skills.length * 12.5)}%` }} /></i></div>
+              <div><span>Interests mapped</span><strong>{profile.interests.length}/6</strong><i><b style={{ width: `${Math.min(100, profile.interests.length * 16.6)}%` }} /></i></div>
+              <div><span>Availability clarity</span><strong>Strong</strong><i><b style={{ width: "92%" }} /></i></div>
+            </div>
+          </article>
+          <article className="next-move-card">
+            <div className="intel-card-head"><span>YOUR NEXT MOVE</span><em>+6 match points</em></div>
+            <h3>Add one project you are proud of.</h3>
+            <p>Even an MSA flyer or school project helps organizations see what you can do.</p>
+            <button className="text-link" onClick={onProfile}>Add experience now →</button>
+          </article>
+          <article className="momentum-card">
+            <div className="intel-card-head"><span>MOMENTUM</span><em>THIS MONTH</em></div>
+            <div className="momentum-number"><strong>+18</strong><span>profile<br />signal gain</span></div>
+            <div className="mini-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
+            <small>Top 12% of active student profiles</small>
+          </article>
+        </section>
+
+        <div className="feed-toolbar" id="match-feed">
           <div className="filter-tabs" role="group" aria-label="Filter opportunities">
             {(["All", "Internships", "Volunteer", "Mentorship"] as Filter[]).map(
               (item) => (
@@ -887,7 +1419,7 @@ function StudentView({
         <div className="feed-heading">
           <div>
             <h2>Your best matches</h2>
-            <p>Ranked using your interests, skills, goals, and real availability.</p>
+            <p>Ranked using your interests, skills, goals, availability, and stated accommodations.</p>
           </div>
           <span>Sorted by fit</span>
         </div>
@@ -941,6 +1473,19 @@ function OrganizationOverview({ onTab }: { onTab: (tab: OrgTab) => void }) {
           + Post an opportunity
         </button>
       </div>
+
+      <section className="org-command-strip">
+        <div className="org-command-copy">
+          <span><i /> TALENT NETWORK ONLINE</span>
+          <h2>Your community needs are becoming student pathways.</h2>
+          <p>MYIN is actively comparing your roles with 126 permissioned youth profiles across 14 fit signals.</p>
+        </div>
+        <div className="org-command-metrics">
+          <div><small>NETWORK FIT</small><strong>91%</strong><span>High signal</span></div>
+          <div><small>AVG. RESPONSE</small><strong>1.8d</strong><span>22% faster</span></div>
+          <div><small>PROFILE REACH</small><strong>126</strong><span>Privacy-safe</span></div>
+        </div>
+      </section>
 
       <div className="org-stat-grid">
         <article>
@@ -1056,50 +1601,52 @@ function OrganizationOverview({ onTab }: { onTab: (tab: OrgTab) => void }) {
 }
 
 function SubmissionView({
+  website,
+  setWebsite,
+  organizationResearch,
+  onResearch,
+  researching,
+  researchNote,
   description,
   setDescription,
   extraction,
-  onUpdateExtraction,
-  completeness,
-  needsConfirmation,
-  isExtracting,
-  extractionError,
+  setExtraction,
   onExtract,
+  extracting,
+  extractNote,
   onPublish,
   published,
 }: {
+  website: string;
+  setWebsite: (value: string) => void;
+  organizationResearch: OrganizationResearch | null;
+  onResearch: () => void;
+  researching: boolean;
+  researchNote: string;
   description: string;
   setDescription: (value: string) => void;
   extraction: Extraction | null;
-  onUpdateExtraction: (value: Extraction) => void;
-  completeness: number;
-  needsConfirmation: ExtractionField[];
-  isExtracting: boolean;
-  extractionError: string | null;
+  setExtraction: (value: Extraction) => void;
   onExtract: () => void;
+  extracting: boolean;
+  extractNote: string;
   onPublish: () => void;
   published: boolean;
 }) {
   const updateField = (field: keyof Extraction, value: string) => {
-    if (!extraction) {
-      return;
-    }
-    onUpdateExtraction({ ...extraction, [field]: value } as Extraction);
+    if (!extraction) return;
+    setExtraction({ ...extraction, [field]: value });
   };
-  const needsReview = (field: ExtractionField) =>
-    needsConfirmation.includes(field);
-  const completedFields = extractionFields.length - needsConfirmation.length;
 
   if (published) {
     return (
       <div className="publish-success">
         <span className="success-mark">✓</span>
         <span className="kicker">READY FOR REVIEW</span>
-        <h1>Your opportunity is ready for student matching.</h1>
+        <h1>Your opportunity has been structured.</h1>
         <p>
-          {extraction?.title || "Your opportunity"} is now visible in
-          Amina&apos;s demo dashboard. Contact details remain private until a
-          controlled introduction is approved.
+          Community Food Drive Creative Team is saved and ready for an
+          administrator to approve before students can see it.
         </p>
         <div className="success-summary">
           <div>
@@ -1123,16 +1670,42 @@ function SubmissionView({
     <div className="submission-layout">
       <div className="submission-intro">
         <span className="kicker">AI-ASSISTED SUBMISSION</span>
-        <h1>Describe the help you need.</h1>
+        <h1>From website to perfect youth role.</h1>
         <p>
-          Paste a rough description. MYIN will organize it into a clear,
-          student-friendly opportunity for you to review.
+          Let MYIN understand your organization, then turn a rough need into a
+          clear, student-friendly opportunity.
         </p>
       </div>
+      <section className="organization-research-card">
+        <div className="research-step-mark">01</div>
+        <div className="research-copy">
+          <span>ORGANIZATION INTELLIGENCE</span>
+          <h2>Start with your website. We&apos;ll do the homework.</h2>
+          <p>MYIN reads public information to prepare an editable profile. Nothing is verified or published until you confirm it.</p>
+          <div className="website-research-input">
+            <input value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://yourorganization.org" aria-label="Organization website" />
+            <button onClick={onResearch} disabled={researching || !website.trim()}>{researching ? "Understanding organization..." : "Build organization profile"}</button>
+          </div>
+          {researchNote && <small className="research-note">{researchNote}</small>}
+        </div>
+        <div className={`research-result ${organizationResearch ? "ready" : ""}`}>
+          {organizationResearch ? (
+            <>
+              <div className="research-result-head"><span>AI DRAFT</span><strong>Ready to confirm</strong></div>
+              <h3>{organizationResearch.name}</h3>
+              <p>{organizationResearch.summary}</p>
+              <div className="research-tags">{[...organizationResearch.sectors, ...organizationResearch.cultureSignals].slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
+              <small>{organizationResearch.location || "Location needs confirmation"}</small>
+            </>
+          ) : (
+            <div className="research-waiting"><i>✦</i><strong>Organization profile</strong><small>Mission, programs, audience, culture, and location will appear here.</small></div>
+          )}
+        </div>
+      </section>
       <div className="submission-grid">
         <section className="panel submission-source">
           <div className="number-heading">
-            <span>1</span>
+            <span>2</span>
             <div>
               <h2>Paste your opportunity</h2>
               <p>Plain language is perfect—no formal job description needed.</p>
@@ -1144,8 +1717,6 @@ function SubmissionView({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={11}
-              maxLength={5_000}
-              aria-describedby="description-limit"
             />
           </label>
           <div className="input-help">
@@ -1156,66 +1727,28 @@ function SubmissionView({
           <button
             className="button button-gold full-width"
             onClick={onExtract}
-            disabled={!description.trim() || isExtracting}
+            disabled={!description.trim() || extracting}
             data-testid="extract-button"
           >
-            <span aria-hidden="true">✦</span>{" "}
-            {isExtracting
-              ? "Extracting details…"
-              : "Extract opportunity details"}
+            <span aria-hidden="true">✦</span> {extracting ? "Structuring opportunity..." : "Extract opportunity details"}
           </button>
-          <small className="description-limit" id="description-limit">
-            {description.length.toLocaleString()} / 5,000 characters
-          </small>
           <small className="demo-disclosure">
-            Gemini creates an editable draft; it never publishes automatically.
+            {extractNote || "Gemini drafts the listing. You confirm every field before publication."}
           </small>
         </section>
 
         <section
           className={`panel extraction-review ${extraction ? "ready" : ""}`}
           data-testid="extraction-review"
-          aria-busy={isExtracting}
-          aria-live="polite"
         >
           <div className="number-heading">
-            <span>2</span>
+            <span>3</span>
             <div>
               <h2>Review what MYIN found</h2>
               <p>You stay in control. Edit anything before submitting.</p>
             </div>
           </div>
-          {isExtracting ? (
-            <div
-              className="waiting-state loading-state"
-              data-testid="extracting-state"
-            >
-              <div className="waiting-graphic" aria-hidden="true">
-                <span>✦</span>
-                <i />
-                <i />
-                <i />
-              </div>
-              <h3>Structuring your opportunity…</h3>
-              <p>
-                MYIN is identifying the details you provided and leaving
-                anything uncertain blank for your review.
-              </p>
-            </div>
-          ) : extractionError ? (
-            <div className="extraction-error-state" role="alert">
-              <span aria-hidden="true">!</span>
-              <h3>We couldn&apos;t extract those details.</h3>
-              <p>{extractionError}</p>
-              <button
-                className="button button-outline compact"
-                onClick={onExtract}
-                disabled={!description.trim()}
-              >
-                Try again
-              </button>
-            </div>
-          ) : !extraction ? (
+          {!extraction ? (
             <div className="waiting-state">
               <div className="waiting-graphic">
                 <span>✦</span>
@@ -1231,30 +1764,15 @@ function SubmissionView({
             </div>
           ) : (
             <div className="extraction-form">
-              <div
-                className={`confidence-banner ${
-                  needsConfirmation.length ? "needs-review" : ""
-                }`}
-              >
-                <span>{needsConfirmation.length ? "!" : "✓"}</span>
+              <div className="confidence-banner">
+                <span>✓</span>
                 <p>
-                  <strong>Extraction completeness</strong>
-                  <small>
-                    {completedFields} fields found ·{" "}
-                    {needsConfirmation.length
-                      ? `${needsConfirmation.length} ${
-                          needsConfirmation.length === 1 ? "field" : "fields"
-                        } need confirmation`
-                      : "all fields are ready to review"}
-                  </small>
+                  <strong>High-confidence extraction</strong>
+                  <small>9 fields found · 1 field needs confirmation</small>
                 </p>
-                <b>{completeness}%</b>
+                <b>92%</b>
               </div>
-              <label
-                className={`wide-field ${
-                  needsReview("title") ? "attention-field" : ""
-                }`}
-              >
+              <label className="wide-field">
                 Opportunity title
                 <input
                   value={extraction.title}
@@ -1262,30 +1780,25 @@ function SubmissionView({
                 />
               </label>
               <div className="form-grid">
-                <label className={needsReview("type") ? "attention-field" : ""}>
+                <label>
                   Type
                   <select
                     value={extraction.type}
                     onChange={(event) => updateField("type", event.target.value)}
                   >
-                    <option value="">Needs confirmation</option>
                     <option>Volunteer</option>
                     <option>Internship</option>
                     <option>Mentorship</option>
                   </select>
                 </label>
-                <label className={needsReview("date") ? "attention-field" : ""}>
+                <label>
                   Date
                   <input
                     value={extraction.date}
                     onChange={(event) => updateField("date", event.target.value)}
                   />
                 </label>
-                <label
-                  className={
-                    needsReview("commitment") ? "attention-field" : ""
-                  }
-                >
+                <label>
                   Commitment
                   <input
                     value={extraction.commitment}
@@ -1294,23 +1807,18 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label
-                  className={needsReview("format") ? "attention-field" : ""}
-                >
+                <label>
                   Format
                   <select
                     value={extraction.format}
                     onChange={(event) => updateField("format", event.target.value)}
                   >
-                    <option value="">Needs confirmation</option>
                     <option>In person</option>
                     <option>Remote</option>
                     <option>Hybrid</option>
                   </select>
                 </label>
-                <label
-                  className={needsReview("ageRange") ? "attention-field" : ""}
-                >
+                <label>
                   Age range
                   <input
                     value={extraction.ageRange}
@@ -1319,9 +1827,7 @@ function SubmissionView({
                     }
                   />
                 </label>
-                <label
-                  className={needsReview("location") ? "attention-field" : ""}
-                >
+                <label>
                   Location
                   <input
                     value={extraction.location}
@@ -1331,32 +1837,14 @@ function SubmissionView({
                   />
                 </label>
               </div>
-              <label
-                className={`wide-field ${
-                  needsReview("skills") ? "attention-field" : ""
-                }`}
-              >
+              <label className="wide-field">
                 Skills requested
                 <input
                   value={extraction.skills}
                   onChange={(event) => updateField("skills", event.target.value)}
                 />
               </label>
-              <label className="wide-field">
-                Student-friendly description
-                <textarea
-                  value={extraction.description}
-                  onChange={(event) =>
-                    updateField("description", event.target.value)
-                  }
-                  rows={3}
-                />
-              </label>
-              <label
-                className={`wide-field ${
-                  needsReview("supervision") ? "attention-field" : ""
-                }`}
-              >
+              <label className="wide-field attention-field">
                 Adult supervision
                 <input
                   value={extraction.supervision}
@@ -1364,32 +1852,20 @@ function SubmissionView({
                     updateField("supervision", event.target.value)
                   }
                 />
-                {needsReview("supervision") && (
-                  <small>
-                    Confirm the supervising adult before publication.
-                  </small>
-                )}
+                <small>Confirm the supervising adult before publication.</small>
               </label>
-              <label
-                className={`wide-field ${
-                  needsReview("impact") ? "attention-field" : ""
-                }`}
-              >
-                Community impact
-                <input
-                  value={extraction.impact}
-                  onChange={(event) => updateField("impact", event.target.value)}
-                />
-              </label>
+              <div className="accommodation-publisher">
+                <div><span>☾</span><div><strong>Faith-aware and access details</strong><small>Clear accommodations help the right young people say yes with confidence.</small></div></div>
+                <div className="form-grid">
+                  <label>Prayer space<select value={extraction.prayerSpace} onChange={(event) => updateField("prayerSpace", event.target.value)}><option value="">Not specified</option><option>Quiet room available</option><option>Nearby space available</option><option>Participants may arrange their own</option></select></label>
+                  <label>Prayer breaks<select value={extraction.prayerBreaks} onChange={(event) => updateField("prayerBreaks", event.target.value)}><option value="">Not specified</option><option>Flexible breaks welcomed</option><option>Schedule can be adjusted</option><option>Ask coordinator in advance</option></select></label>
+                  <label>Food details<select value={extraction.halalFood} onChange={(event) => updateField("halalFood", event.target.value)}><option value="">Not specified</option><option>Halal food provided</option><option>Halal options nearby</option><option>Bring-your-own welcome</option></select></label>
+                  <label>Urgency<select value={extraction.urgentNeed} onChange={(event) => updateField("urgentNeed", event.target.value)}><option>No</option><option>Yes — immediate need</option></select></label>
+                </div>
+              </div>
               <button
                 className="button button-dark full-width"
                 onClick={onPublish}
-                disabled={
-                  !extraction.title.trim() ||
-                  !extraction.description.trim() ||
-                  !extraction.type ||
-                  !extraction.supervision.trim()
-                }
               >
                 Submit for safety review
               </button>
@@ -1404,24 +1880,16 @@ function SubmissionView({
 function MatchesView({
   shortlisted,
   onShortlist,
-  hasInterest,
-  opportunityTitle,
 }: {
   shortlisted: number[];
   onShortlist: (id: number) => void;
-  hasInterest: boolean;
-  opportunityTitle: string | null;
 }) {
   return (
     <div className="matches-view">
       <div className="matches-heading">
         <div>
           <span className="kicker">EXPLAINABLE RECOMMENDATIONS</span>
-          <h1>
-            {hasInterest
-              ? "Amina expressed interest in your new opportunity."
-              : "12 students match your digital media role."}
-          </h1>
+          <h1>12 students match your digital media role.</h1>
           <p>
             Only students who opted into discovery or expressed interest are
             included.
@@ -1439,12 +1907,12 @@ function MatchesView({
           details, and precise locations are hidden.
         </p>
       </div>
-      {hasInterest && (
-        <p className="form-success">
-          New interest received for {opportunityTitle}. Amina opted in to this
-          privacy-safe view.
-        </p>
-      )}
+      <section className="candidate-pipeline" aria-label="Candidate pipeline">
+        <article><span>Recommended</span><strong>12</strong><small>Best-fit profiles</small></article>
+        <article><span>Interested</span><strong>4</strong><small>Student-led signals</small></article>
+        <article><span>Shortlisted</span><strong>{shortlisted.length}</strong><small>Ready to review</small></article>
+        <article><span>Introductions</span><strong>1</strong><small>Consent in progress</small></article>
+      </section>
       <div className="candidate-list">
         {candidates.map((candidate, index) => {
           const isShortlisted = shortlisted.includes(candidate.id);
@@ -1496,78 +1964,91 @@ function MatchesView({
 
 function OrganizationView({
   onPublishOpportunity,
-  publishedOpportunities,
-  appliedIds,
 }: {
   onPublishOpportunity: (opportunity: Opportunity) => void;
-  publishedOpportunities: Opportunity[];
-  appliedIds: number[];
 }) {
   const [tab, setTab] = useState<OrgTab>("overview");
+  const [website, setWebsite] = useState("https://rahmacommunity.example");
+  const [organizationResearch, setOrganizationResearch] = useState<OrganizationResearch | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchNote, setResearchNote] = useState("");
   const [description, setDescription] = useState(defaultDescription);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
-  const [completeness, setCompleteness] = useState(0);
-  const [needsConfirmation, setNeedsConfirmation] = useState<ExtractionField[]>(
-    [],
-  );
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractNote, setExtractNote] = useState("");
   const [published, setPublished] = useState(false);
   const [shortlisted, setShortlisted] = useState<number[]>([]);
 
-  const updateExtraction = (value: Extraction) => {
-    const summary = summarizeExtraction(value);
-    setExtraction(value);
-    setCompleteness(summary.completeness);
-    setNeedsConfirmation(summary.needsConfirmation);
+  const researchOrganization = async () => {
+    setResearching(true);
+    setResearchNote("");
+    try {
+      const response = await fetch("/api/organization-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ website }),
+      });
+      if (!response.ok) throw new Error("Research unavailable");
+      setOrganizationResearch((await response.json()) as OrganizationResearch);
+      setResearchNote("Public website analyzed. Review this AI draft before using it.");
+    } catch {
+      setOrganizationResearch({
+        name: "Rahma Community Center",
+        summary: "A fictional community hub supporting families, youth learning, and neighborhood service projects.",
+        mission: "Help local families thrive through service, learning, and connection.",
+        sectors: ["Community services", "Youth programs"],
+        audiences: ["Youth", "Families"],
+        cultureSignals: ["Service-led", "Mentorship"],
+        location: "Dearborn, MI",
+        sourceNote: "Demo profile shown until Gemini is configured.",
+        website,
+      });
+      setResearchNote("Demo profile shown. Add GEMINI_API_KEY to activate live website understanding.");
+    } finally {
+      setResearching(false);
+    }
   };
 
   const extract = async () => {
-    if (isExtracting || !description.trim()) {
-      return;
-    }
-
-    setIsExtracting(true);
-    setExtractionError(null);
-    setExtraction(null);
-    setCompleteness(0);
-    setNeedsConfirmation([]);
-
+    setExtracting(true);
+    setExtractNote("");
     try {
-      const response = await fetch("/api/extract-opportunity", {
+      const response = await fetch("/api/opportunity-extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({
+          description,
+          organizationContext: organizationResearch
+            ? `${organizationResearch.name}: ${organizationResearch.summary}. Mission: ${organizationResearch.mission}`
+            : "",
+        }),
       });
-      const payload = (await response.json()) as
-        | ExtractionResult
-        | { error?: { message?: string } };
-
-      if (!response.ok || !("extraction" in payload)) {
-        throw new Error(
-          "error" in payload && payload.error?.message
-            ? payload.error.message
-            : "MYIN could not extract this opportunity. Please try again.",
-        );
-      }
-
-      setExtraction({
-        ...payload.extraction,
-        description,
-        interests: "",
-        deadline: "",
-      });
-      setCompleteness(payload.completeness);
-      setNeedsConfirmation(payload.needsConfirmation);
-    } catch (error) {
-      setExtractionError(
-        error instanceof Error
-          ? error.message
-          : "MYIN could not extract this opportunity. Please try again.",
-      );
-    } finally {
-      setIsExtracting(false);
+      if (!response.ok) throw new Error("Extraction unavailable");
+      const result = (await response.json()) as Extraction & { missingFields?: string[] };
+      setExtraction(result);
+      setExtractNote(`Gemini extraction complete${result.missingFields?.length ? ` — ${result.missingFields.length} field(s) need confirmation` : ""}.`);
+      setExtracting(false);
+      return;
+    } catch {
+      setExtractNote("Gemini is not configured yet. Manual fields are open; no details were invented.");
     }
+    setExtraction({
+      title: "",
+      type: "Volunteer",
+      date: "",
+      commitment: "",
+      location: "",
+      format: "In person",
+      ageRange: "",
+      supervision: "",
+      skills: "",
+      impact: "",
+      prayerSpace: "",
+      prayerBreaks: "",
+      halalFood: "",
+      urgentNeed: "No",
+    });
+    setExtracting(false);
   };
 
   const toggleShortlist = (id: number) => {
@@ -1578,53 +2059,32 @@ function OrganizationView({
     );
   };
 
-  const publish = () => {
-    if (!extraction) {
-      return;
-    }
-
-    const skills = extraction.skills
-      .split(",")
-      .map((skill) => skill.trim())
-      .filter(Boolean);
-    const interests = extraction.interests
-      .split(",")
-      .map((interest) => interest.trim())
-      .filter(Boolean);
-    const match = calculateMatch(aminaProfile, {
-      type: extraction.type,
-      skills,
-      interests,
-      careerGoals: interests,
-      availability: extraction.date.toLowerCase().includes("saturday")
-        ? ["Saturday"]
-        : [],
-      ageRange: extraction.ageRange,
-      location: extraction.location || "Anywhere",
-      format: extraction.format,
-    });
-
+  const publishOpportunity = () => {
+    if (!extraction?.title.trim()) return;
+    const skills = extraction.skills.split(",").map((item) => item.trim()).filter(Boolean);
     onPublishOpportunity({
-      id: Date.now(),
+      id: 1001,
       title: extraction.title,
-      organization: "Rahma Community Center",
-      organizationMark: "RC",
-      type: (
-        ["Volunteer", "Internship", "Mentorship"].includes(extraction.type)
-          ? extraction.type
-          : "Volunteer"
-      ) as Opportunity["type"],
+      organization: organizationResearch?.name || "Rahma Community Center",
+      organizationMark: (organizationResearch?.name || "Rahma Community Center").split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase(),
+      type: extraction.type as Opportunity["type"],
       format: extraction.format,
       location: extraction.location || "Location to confirm",
-      deadline: extraction.deadline || "Date to confirm",
-      commitment: extraction.commitment || "Schedule to confirm",
-      description: extraction.description,
+      deadline: extraction.date || "Date to confirm",
+      commitment: extraction.commitment || "Commitment to confirm",
+      description: extraction.impact || description,
       skills,
-      matchReasons: match.reasons,
-      score: match.score,
-      breakdown: match.breakdown,
-      accent: "coral",
+      matchReasons: [],
+      score: 0,
+      breakdown: [],
+      accent: "gold",
       new: true,
+      urgent: extraction.urgentNeed === "Yes — immediate need",
+      faithSupport: [
+        extraction.prayerSpace && `Prayer space: ${extraction.prayerSpace}`,
+        extraction.prayerBreaks && `Prayer breaks: ${extraction.prayerBreaks}`,
+        extraction.halalFood && `Food: ${extraction.halalFood}`,
+      ].filter(Boolean) as string[],
     });
     setPublished(true);
   };
@@ -1673,32 +2133,25 @@ function OrganizationView({
         {tab === "overview" && <OrganizationOverview onTab={setTab} />}
         {tab === "submit" && (
           <SubmissionView
+            website={website}
+            setWebsite={setWebsite}
+            organizationResearch={organizationResearch}
+            onResearch={researchOrganization}
+            researching={researching}
+            researchNote={researchNote}
             description={description}
             setDescription={setDescription}
             extraction={extraction}
-            onUpdateExtraction={updateExtraction}
-            completeness={completeness}
-            needsConfirmation={needsConfirmation}
-            isExtracting={isExtracting}
-            extractionError={extractionError}
+            setExtraction={setExtraction}
             onExtract={extract}
-            onPublish={publish}
+            extracting={extracting}
+            extractNote={extractNote}
+            onPublish={publishOpportunity}
             published={published}
           />
         )}
         {tab === "matches" && (
-          <MatchesView
-            shortlisted={shortlisted}
-            onShortlist={toggleShortlist}
-            hasInterest={publishedOpportunities.some((opportunity) =>
-              appliedIds.includes(opportunity.id),
-            )}
-            opportunityTitle={
-              publishedOpportunities.find((opportunity) =>
-                appliedIds.includes(opportunity.id),
-              )?.title ?? null
-            }
-          />
+          <MatchesView shortlisted={shortlisted} onShortlist={toggleShortlist} />
         )}
       </section>
     </main>
@@ -2011,8 +2464,68 @@ function EmailModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ProfileModal({ onClose }: { onClose: () => void }) {
+function ProfileModal({
+  profile,
+  onSave,
+  onClose,
+}: {
+  profile: StudentProfile;
+  onSave: (profile: StudentProfile) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(profile);
   const [saved, setSaved] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [analysisNote, setAnalysisNote] = useState("");
+  const [suggestedWorkStyle, setSuggestedWorkStyle] = useState("");
+
+  const update = <K extends keyof StudentProfile>(key: K, value: StudentProfile[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const analyzeStory = async () => {
+    if (!draft.narrative.trim()) return;
+    setAnalyzing(true);
+    setAnalysisNote("");
+    try {
+      const response = await fetch("/api/profile-enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ narrative: draft.narrative }),
+      });
+      if (!response.ok) throw new Error("AI unavailable");
+      const result = (await response.json()) as {
+        skills: string[];
+        interests: string[];
+        causes: string[];
+        workStyle: string;
+        summary: string;
+      };
+      setSuggestions([...result.skills.slice(0, 3), ...result.interests.slice(0, 2), ...result.causes.slice(0, 1)]);
+      setSuggestedWorkStyle(result.workStyle);
+      setAnalysisNote(result.summary);
+    } catch {
+      const text = draft.narrative.toLowerCase();
+      const next = [
+        text.includes("msa") || text.includes("community") ? "Community leadership" : "Self-directed learner",
+        text.includes("flyer") || text.includes("design") ? "Visual communication" : "Clear communication",
+        text.includes("student") || text.includes("tutor") ? "Youth mentorship" : "Collaborative work",
+      ];
+      setSuggestions(next);
+      setAnalysisNote("Preview suggestions shown. Add the Gemini key to activate live enrichment.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const acceptSuggestions = () => {
+    update("skills", Array.from(new Set([...draft.skills, ...suggestions.slice(0, 3)])));
+    update("interests", Array.from(new Set([...draft.interests, ...suggestions.slice(3)])));
+    if (suggestedWorkStyle) update("workStyle", suggestedWorkStyle);
+    setSuggestions([]);
+    setSuggestedWorkStyle("");
+  };
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -2026,14 +2539,17 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
         <button className="modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <span className="kicker">STUDENT PROFILE</span>
-        <h2 id="profile-modal-title">Help MYIN understand you.</h2>
-        <p>These details shape your eligibility checks and recommendation score.</p>
+        <span className="kicker">MYIN IDENTITY STUDIO</span>
+        <h2 id="profile-modal-title">Turn who you are into better opportunities.</h2>
+        <p>Required basics unlock eligibility. Optional signals make every match sharper.</p>
         <div className="profile-form">
+          <div className="profile-form-section-title">
+            <span>01</span><div><strong>Eligibility essentials</strong><small>Required for accurate matches</small></div>
+          </div>
           <div className="form-grid">
             <label>
               Grade
-              <select defaultValue="Grade 11">
+              <select value={draft.grade} onChange={(event) => update("grade", event.target.value)}>
                 <option>Grade 9</option>
                 <option>Grade 10</option>
                 <option>Grade 11</option>
@@ -2043,33 +2559,88 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             </label>
             <label>
               General location
-              <input defaultValue="Dearborn, MI" />
+              <input value={draft.location} onChange={(event) => update("location", event.target.value)} />
             </label>
             <label>
               Preferred format
-              <select defaultValue="Local or virtual">
+              <select value={draft.preferredFormat} onChange={(event) => update("preferredFormat", event.target.value)}>
                 <option>Local or virtual</option>
                 <option>Virtual only</option>
                 <option>Local only</option>
               </select>
             </label>
             <label>
-              Availability
-              <input defaultValue="Saturdays, 10 AM–4 PM" />
+              Quick availability summary
+              <input value={draft.availability} onChange={(event) => update("availability", event.target.value)} placeholder="e.g. Saturdays, 10 AM–4 PM" />
             </label>
           </div>
+          <div className="availability-studio">
+            <div><strong>Build your real weekly availability</strong><small>Optional but powerful: include days, time windows, school limits, travel time, and blackout periods.</small></div>
+            <textarea value={draft.weeklyWindows} onChange={(event) => update("weeklyWindows", event.target.value)} placeholder="Example: Mon–Thu after 4 PM; Saturday 10 AM–4 PM; unavailable during exams." />
+            <label className="discoverable-control emergency-toggle">
+              <input type="checkbox" checked={draft.emergencyAvailability} onChange={(event) => update("emergencyAvailability", event.target.checked)} />
+              <span><strong>Show me verified immediate-need opportunities</strong><small>Examples: supervised clinic, food pantry, or community-event shifts. You choose when this is on.</small></span>
+            </label>
+          </div>
+          <div className="profile-form-section-title">
+            <span>01a</span><div><strong>Faith-aware preferences</strong><small>Private preference signals — only used to find a more respectful fit</small></div>
+          </div>
+          <div className="profile-option-grid faith-preference-grid">
+            <label>Prayer-time preference <small>Optional</small><select value={draft.prayerPreference} onChange={(event) => update("prayerPreference", event.target.value)}><option>I need a short, flexible break for Zuhr/Asr when shifts overlap.</option><option>Flexible; please share the schedule clearly.</option><option>I do not need prayer accommodations listed.</option></select></label>
+            <label>Friday / Jumu&apos;ah preference <small>Optional</small><select value={draft.jumuahPreference} onChange={(event) => update("jumuahPreference", event.target.value)}><option>Keep Friday midday open when possible</option><option>I can work Friday with a flexible break</option><option>No Friday preference</option></select></label>
+          </div>
+          <label>Accommodation note <small>Optional — visible only as a preference, not as personal information</small><input value={draft.accommodationNotes} onChange={(event) => update("accommodationNotes", event.target.value)} placeholder="e.g. A quiet place to pray is appreciated" /></label>
+          <div className="profile-form-section-title">
+            <span>01b</span><div><strong>Experience and proof portfolio</strong><small>Build the evidence colleges, mentors, and community partners can understand</small></div>
+          </div>
+          <label>Home ZIP code <small>Optional — used only when you choose to search the Opportunity Radar</small><input value={draft.homeZip} onChange={(event) => update("homeZip", event.target.value.replace(/\D/g, "").slice(0, 5))} inputMode="numeric" placeholder="e.g. 48126" /></label>
+          <label>Past experiences <small>One per line: role | dates | what you did or achieved</small><textarea value={draft.experienceNarrative} onChange={(event) => update("experienceNarrative", event.target.value)} placeholder="MSA Media Lead | 2025–present | Designed event flyers for 120+ students" /></label>
+          <label>What do you want to get better at? <small>Optional — MYIN uses this to suggest growth opportunities</small><input value={draft.growthFocus} onChange={(event) => update("growthFocus", event.target.value)} placeholder="e.g. public speaking, coding, leadership" /></label>
+          <div className="profile-form-section-title">
+            <span>02</span><div><strong>Your opportunity signal</strong><small>Specific beats impressive</small></div>
+          </div>
           <label>
-            Skills
-            <input defaultValue="Canva, social media, basic web design" />
+            Skills <small>Separate each with a comma</small>
+            <input value={draft.skills.join(", ")} onChange={(event) => update("skills", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
           </label>
           <label>
-            Interests and causes
-            <input defaultValue="Technology, design, youth education" />
+            Interests <small>Optional</small>
+            <input value={draft.interests.join(", ")} onChange={(event) => update("interests", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
+          </label>
+          <label>
+            Causes you care about <small>Optional</small>
+            <input value={draft.causes.join(", ")} onChange={(event) => update("causes", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} />
           </label>
           <label>
             Career goal
-            <input defaultValue="Explore design and technology for social impact" />
+            <input value={draft.careerGoal} onChange={(event) => update("careerGoal", event.target.value)} />
           </label>
+          <div className="profile-option-grid">
+            <label>Experience level<select value={draft.experienceLevel} onChange={(event) => update("experienceLevel", event.target.value)}><option>Just exploring</option><option>Growing portfolio</option><option>Ready to contribute</option></select></label>
+            <label>Best work style<select value={draft.workStyle} onChange={(event) => update("workStyle", event.target.value)}><option>Creative team</option><option>Independent focus</option><option>People-facing</option><option>Research and analysis</option></select></label>
+            <label>Transportation <small>Optional</small><select value={draft.transportation} onChange={(event) => update("transportation", event.target.value)}><option>Local rides available</option><option>Public transit</option><option>Remote only</option><option>Flexible</option></select></label>
+            <label>Languages <small>Optional</small><input value={draft.languages.join(", ")} onChange={(event) => update("languages", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
+          </div>
+
+          <div className="ai-story-panel">
+            <div className="ai-story-head">
+              <span className="ai-spark">✦</span>
+              <div><strong>Tell MYIN in your own words</strong><small>AI enrichment preview — you approve every suggestion</small></div>
+            </div>
+            <textarea value={draft.narrative} onChange={(event) => update("narrative", event.target.value)} placeholder="Example: I help my MSA with flyers, enjoy tutoring younger students, and want to learn how technology can help my community..." />
+            <div className="ai-story-action">
+              <small>Your story stays private and is never shown directly to organizations.</small>
+              <button type="button" onClick={analyzeStory} disabled={analyzing || !draft.narrative.trim()}>{analyzing ? "Reading your story..." : "Find hidden strengths"}</button>
+            </div>
+            {suggestions.length > 0 && (
+              <div className="ai-suggestion-box">
+                <div><strong>Suggested signals</strong><small>Review before adding</small></div>
+                {analysisNote && <p>{analysisNote}</p>}
+                <div className="suggestion-chips">{suggestions.map((suggestion) => <span key={suggestion}>{suggestion}</span>)}</div>
+                <div className="suggestion-actions"><button type="button" onClick={() => setSuggestions([])}>Dismiss</button><button type="button" onClick={acceptSuggestions}>Add to my profile</button></div>
+              </div>
+            )}
+          </div>
           <label className="discoverable-control">
             <input type="checkbox" defaultChecked />
             <span>
@@ -2083,6 +2654,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             }`}
             onClick={() => {
               setSaved(true);
+              onSave(draft);
               window.setTimeout(onClose, 650);
             }}
           >
@@ -2096,13 +2668,13 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
 
 export default function Home() {
   const [view, setView] = useState<View>("home");
+  const [account, setAccount] = useState<DemoAccount | null>(null);
+  const [customAccounts, setCustomAccounts] = useState<StoredDemoAccount[]>([]);
+  const [profile, setProfile] = useState<StudentProfile>(initialStudentProfile);
+  const [createdOpportunities, setCreatedOpportunities] = useState<Opportunity[]>([]);
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
-  const [publishedOpportunities, setPublishedOpportunities] = useState<
-    Opportunity[]
-  >([]);
-  const [resetKey, setResetKey] = useState(0);
   const [selectedOpportunity, setSelectedOpportunity] =
     useState<Opportunity | null>(null);
   const [showEmail, setShowEmail] = useState(false);
@@ -2119,13 +2691,19 @@ export default function Home() {
             savedIds?: number[];
             appliedIds?: number[];
             dismissedIds?: number[];
-            publishedOpportunities?: Opportunity[];
+            profile?: StudentProfile;
+            createdOpportunities?: Opportunity[];
           };
           setSavedIds(state.savedIds ?? []);
           setAppliedIds(state.appliedIds ?? []);
           setDismissedIds(state.dismissedIds ?? []);
-          setPublishedOpportunities(state.publishedOpportunities ?? []);
+          setProfile({ ...initialStudentProfile, ...(state.profile ?? {}) });
+          setCreatedOpportunities(state.createdOpportunities ?? []);
         }
+        const storedAccount = window.localStorage.getItem("myin-demo-account");
+        if (storedAccount) setAccount(JSON.parse(storedAccount) as DemoAccount);
+        const storedCustomAccounts = window.localStorage.getItem("myin-custom-accounts");
+        if (storedCustomAccounts) setCustomAccounts(JSON.parse(storedCustomAccounts) as StoredDemoAccount[]);
       } catch {
         // The demo still works if local storage is unavailable.
       }
@@ -2136,35 +2714,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(
-        "myin-demo-state",
-        JSON.stringify({
-          savedIds,
-          appliedIds,
-          dismissedIds,
-          publishedOpportunities,
-        }),
-      );
-    } catch {
-      // The demo still works if local storage is unavailable or full.
-    }
-  }, [
-    appliedIds,
-    dismissedIds,
-    hydrated,
-    publishedOpportunities,
-    savedIds,
-  ]);
+    if (!hydrated) return;
+    window.localStorage.setItem(
+      "myin-demo-state",
+      JSON.stringify({ savedIds, appliedIds, dismissedIds, profile, createdOpportunities }),
+    );
+  }, [appliedIds, createdOpportunities, dismissedIds, hydrated, profile, savedIds]);
 
   useEffect(() => {
-    if (!notice) {
-      return;
-    }
+    if (!hydrated) return;
+    if (account) window.localStorage.setItem("myin-demo-account", JSON.stringify(account));
+    else window.localStorage.removeItem("myin-demo-account");
+  }, [account, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    window.localStorage.setItem("myin-custom-accounts", JSON.stringify(customAccounts));
+  }, [customAccounts, hydrated]);
+
+  useEffect(() => {
+    if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [notice]);
@@ -2174,60 +2743,56 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const login = (nextAccount: DemoAccount) => {
+    setAccount(nextAccount);
+    navigate(nextAccount.role === "student" ? "student" : "organization");
+  };
+
+  const createAccount = (nextAccount: StoredDemoAccount) => {
+    if (demoAccounts[nextAccount.username] || customAccounts.some((account) => account.username === nextAccount.username)) {
+      return "That username is already taken. Try another one.";
+    }
+    setCustomAccounts((current) => [...current, nextAccount]);
+    return null;
+  };
+
+  const signOut = () => {
+    setAccount(null);
+    navigate("home");
+  };
+
   const toggleSave = (id: number) => {
-    const isSaved = savedIds.includes(id);
-    setSavedIds(
-      isSaved ? savedIds.filter((item) => item !== id) : [...savedIds, id],
-    );
-    setNotice(
-      isSaved ? "Removed from saved opportunities." : "Opportunity saved.",
-    );
+    setSavedIds((current) => {
+      const isSaved = current.includes(id);
+      setNotice(isSaved ? "Removed from saved opportunities." : "Opportunity saved.");
+      return isSaved ? current.filter((item) => item !== id) : [...current, id];
+    });
   };
 
   const apply = (id: number) => {
-    if (appliedIds.includes(id)) {
-      return;
-    }
-    setAppliedIds((current) =>
-      current.includes(id) ? current : [...current, id],
-    );
+    if (appliedIds.includes(id)) return;
+    setAppliedIds((current) => [...current, id]);
     setNotice("Interest sent safely. Your contact details are still private.");
   };
 
   const dismiss = (id: number) => {
-    setDismissedIds((current) =>
-      current.includes(id) ? current : [...current, id],
-    );
+    setDismissedIds((current) => [...current, id]);
     setNotice("Got it. We’ll use that feedback to improve your matches.");
   };
-
-  const resetDemo = () => {
-    setSavedIds([]);
-    setAppliedIds([]);
-    setDismissedIds([]);
-    setPublishedOpportunities([]);
-    setSelectedOpportunity(null);
-    setResetKey((value) => value + 1);
-    try {
-      window.localStorage.removeItem("myin-demo-state");
-    } catch {
-      // Local storage is optional.
-    }
-    setNotice("Demo reset. Seeded opportunities are restored.");
-  };
-
-  const allOpportunities = [...publishedOpportunities, ...opportunities];
 
   return (
     <>
       {view === "home" ? (
         <HomeView onNavigate={navigate} />
+      ) : view === "auth" ? (
+        <AuthView onBack={() => navigate("home")} onLogin={login} customAccounts={customAccounts} onCreateAccount={createAccount} />
       ) : (
         <div className="app-shell">
-          <AppHeader view={view} onNavigate={navigate} />
+          <AppHeader view={view} onNavigate={navigate} account={account ?? demoAccounts.amina_test} onSignOut={signOut} />
           {view === "student" && (
             <StudentView
-              opportunities={allOpportunities}
+              profile={profile}
+              createdOpportunities={createdOpportunities}
               savedIds={savedIds}
               appliedIds={appliedIds}
               dismissedIds={dismissedIds}
@@ -2239,19 +2804,7 @@ export default function Home() {
               onProfile={() => setShowProfile(true)}
             />
           )}
-          {view === "organization" && (
-            <OrganizationView
-              key={resetKey}
-              onPublishOpportunity={(opportunity) =>
-                setPublishedOpportunities((current) => [
-                  opportunity,
-                  ...current.filter((item) => item.id !== opportunity.id),
-                ])
-              }
-              publishedOpportunities={publishedOpportunities}
-              appliedIds={appliedIds}
-            />
-          )}
+          {view === "organization" && <OrganizationView onPublishOpportunity={(opportunity) => setCreatedOpportunities((current) => [...current.filter((item) => item.id !== opportunity.id), opportunity])} />}
           {view === "impact" && <ImpactView />}
         </div>
       )}
@@ -2265,17 +2818,12 @@ export default function Home() {
         />
       )}
       {showEmail && <EmailModal onClose={() => setShowEmail(false)} />}
-      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showProfile && <ProfileModal profile={profile} onSave={setProfile} onClose={() => setShowProfile(false)} />}
       {notice && (
         <div className="toast" role="status">
           <span>✓</span>
           {notice}
         </div>
-      )}
-      {view !== "home" && (
-        <button className="reset-demo" onClick={resetDemo}>
-          Reset demo
-        </button>
       )}
     </>
   );
